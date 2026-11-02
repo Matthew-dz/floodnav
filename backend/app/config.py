@@ -18,4 +18,4 @@ LEVEL_DEPTH_CM = {"light": 10, "medium": 25, "heavy": 40}
 # Tốc độ trung bình ước tính trong phố (km/h), chỉ dùng để ước lượng thời gian
 SPEED_KMH = {"motorbike": 25, "car": 30}
 
-MAX_SNAP_M = 500            # điểm xuất phát/đích cách đường gần nhất quá 500 m thì báo lỗi
+MAX_SNAP_M = 1500           # điểm xuất phát/đích cách đường gần nhất quá 1500 m thì báo lỗi
