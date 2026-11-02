@@ -104,9 +104,16 @@ def fetch_flood_sources(use_ai_prediction: bool = False) -> list:
     Mực nước hiện tại: số đo mới nhất của mỗi điểm ngập + báo cáo đã xác nhận còn hiệu lực.
     Nếu use_ai_prediction=True, kết hợp mô hình AI Scikit-learn dự báo 30 phút để chặn đường sớm.
     """
-    with pool.connection() as conn:
-        points = conn.execute(POINTS_SQL).fetchall()
-        reports = conn.execute(REPORTS_SQL).fetchall()
+    points, reports = [], []
+    try:
+        with pool.connection(timeout=3.0) as conn:
+            points = conn.execute(POINTS_SQL).fetchall()
+            reports = conn.execute(REPORTS_SQL).fetchall()
+    except Exception as e:
+        log.warning("DB query failed in fetch_flood_sources, using fallback: %s", e)
+        from .routers.flood_points import DEFAULT_FLOOD_POINTS
+        points = DEFAULT_FLOOD_POINTS
+        reports = []
 
     ai_model = None
     if use_ai_prediction:

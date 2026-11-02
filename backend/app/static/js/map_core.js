@@ -29,17 +29,17 @@ function initMap() {
     zoomControl: true
   });
 
-  // Lớp bản đồ chính: CartoDB Voyager (tải cực nhanh, giải quyết triệt để lỗi DNS tại Việt Nam)
-  const cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
-    subdomains: 'abcd'
-  }).addTo(map);
-
-  // Lớp bản đồ ESRI World Street Map (Akamai CDN tốc độ cao)
+  // Lớp bản đồ chính: ESRI World Street Map (Akamai CDN tốc độ cao, 100% không dính watermark, không cần API key)
   const esriLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
     attribution: 'Tiles &copy; Esri &mdash; OpenStreetMap contributors',
     maxZoom: 19
+  }).addTo(map);
+
+  // Lớp bản đồ OpenStreetMap France (CDN châu Âu tốc độ cao, không watermark)
+  const osmFrLayer = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap France &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+    subdomains: ['a', 'b', 'c']
   });
 
   // Lớp bản đồ tiêu chuẩn OSM
@@ -50,8 +50,8 @@ function initMap() {
   });
 
   L.control.layers({
-    'Bản đồ Chi tiết (CartoDB)': cartoLayer,
-    'Bản đồ Đường phố (ESRI)': esriLayer,
+    'Bản đồ Đường phố (ESRI - Khuyên dùng)': esriLayer,
+    'OpenStreetMap (Bản đồ Pháp OSM-FR)': osmFrLayer,
     'OpenStreetMap Chuẩn': osmLayer
   }, null, { position: 'topright' }).addTo(map);
 
