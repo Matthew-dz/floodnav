@@ -20,7 +20,7 @@ let coords = {
   report: null
 };
 
-// 1. Khởi tạo bản đồ OpenStreetMap (100% Free & Open Source ODbL)
+// 1. Khởi tạo bản đồ OpenStreetMap & CartoDB (100% Free & Open Source ODbL)
 function initMap() {
   // Tâm bản đồ tại trung tâm khu vực nghiên cứu Hà Nội (Cầu Giấy - Đống Đa)
   map = L.map('map', {
@@ -29,16 +29,37 @@ function initMap() {
     zoomControl: true
   });
 
-  // OpenStreetMap chuẩn quốc tế - Không cần bất kỳ API key nào
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 19
+  // Lớp bản đồ chính: CartoDB Voyager (dựa trên dữ liệu OpenStreetMap, tải cực nhanh và mượt mà)
+  const cartoLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+    subdomains: 'abcd'
   }).addTo(map);
+
+  // Lớp bản đồ tiêu chuẩn OSM dự phòng
+  const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+    subdomains: ['a', 'b', 'c']
+  });
+
+  L.control.layers({
+    'Bản đồ Chi tiết (Khuyên dùng)': cartoLayer,
+    'OpenStreetMap Chuẩn': osmLayer
+  }, null, { position: 'topright' }).addTo(map);
 
   floodCirclesLayer.addTo(map);
   floodMarkersLayer.addTo(map);
 
   map.on('click', onMapClick);
+
+  // Tự động tính toán lại kích thước bản đồ tránh lỗi màn hình xám khi layout flex tải xong
+  map.whenReady(() => {
+    map.invalidateSize();
+  });
+  setTimeout(() => { if (map) map.invalidateSize(); }, 250);
+  setTimeout(() => { if (map) map.invalidateSize(); }, 800);
+  window.addEventListener('resize', () => { if (map) map.invalidateSize(); });
 
   // Tải dữ liệu điểm ngập ban đầu
   loadFloodPoints();
