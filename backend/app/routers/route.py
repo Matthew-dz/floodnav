@@ -15,6 +15,7 @@ def find_route(body: RouteRequest):
     Trả về 2 lộ trình:
       - fastest: ngắn nhất, KHÔNG quan tâm ngập (giống bản đồ thông thường)
       - safe:    tránh ngập, chặn đoạn vượt ngưỡng của loại xe, phạt đoạn ngập nhẹ
+                 (kết hợp mô hình AI dự báo 30 phút nếu use_ai_prediction=True)
     """
     try:
         rg = get_graph()
@@ -28,7 +29,7 @@ def find_route(body: RouteRequest):
             422, "Điểm đi/điểm đến nằm ngoài vùng bản đồ đã tải (cách đường gần nhất > "
                  f"{config.MAX_SNAP_M} m). Khung bản đồ: kinh độ 105.772-105.831, vĩ độ 21.003-21.052.")
 
-    sources = fetch_flood_sources()
+    sources = fetch_flood_sources(use_ai_prediction=body.use_ai_prediction)
     flood = rg.flood_edges(sources)
 
     results, paths = {}, {}
@@ -43,6 +44,7 @@ def find_route(body: RouteRequest):
 
     return {
         "vehicle": body.vehicle,
+        "ai_prediction_applied": body.use_ai_prediction,
         "same_route": paths.get("fastest") == paths.get("safe"),
         "fastest": results["fastest"],
         "safe": results["safe"],

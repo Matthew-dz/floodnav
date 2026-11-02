@@ -63,3 +63,4 @@ class RouteRequest(BaseModel):
     origin: LngLat
     destination: LngLat
     vehicle: Literal["motorbike", "car"] = "motorbike"
+    use_ai_prediction: bool = False

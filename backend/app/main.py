@@ -6,7 +6,16 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .db import pool
-from .routers import flood_points, graph_info, readings, reports, route, weather, prediction
+from .routers import (
+    flood_points,
+    graph_info,
+    readings,
+    reports,
+    route,
+    weather,
+    prediction,
+    websocket_nav
+)
 
 app = FastAPI(title="FloodNav API", version="0.4.0")
 
@@ -29,6 +38,7 @@ app.include_router(graph_info.router)
 app.include_router(route.router)
 app.include_router(weather.router)
 app.include_router(prediction.router)
+app.include_router(websocket_nav.router)
 
 
 @app.get("/", include_in_schema=False)
