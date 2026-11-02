@@ -1,5 +1,11 @@
 # 🌊 FloodNav – Hệ thống Bản đồ Thông minh Cảnh báo và Điều hướng Tránh Điểm Ngập Lụt Cục bộ
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python: 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg?logo=fastapi)](https://fastapi.tiangolo.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20%2B%20PostGIS-336791.svg?logo=postgresql)](https://postgis.net/)
+[![OSI Approved](https://img.shields.io/badge/OSI-Approved%20Open%20Source-brightgreen.svg)](https://opensource.org/licenses)
+
 > Dự án tham dự cuộc thi mã nguồn mở – Fullstack A-Z (Database → Backend → Frontend).
 
 ## 1. Giới thiệu bài toán
@@ -172,4 +178,4 @@ Toạ độ các điểm ngập trong dữ liệu mẫu là **gần đúng**, ch
 
 ## 9. Giấy phép
 
-Phát hành theo giấy phép [MIT](LICENSE).
+Dự án được phát hành theo giấy phép mã nguồn mở [MIT License](LICENSE) © 2026 FloodNav Team. Toàn bộ mã nguồn và tài nguyên tuân thủ quy chuẩn Open Source của Open Source Initiative (OSI).
