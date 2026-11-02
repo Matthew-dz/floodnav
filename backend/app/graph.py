@@ -99,17 +99,42 @@ REPORTS_SQL = """
 """
 
 
-def fetch_flood_sources() -> list:
-    """Mực nước hiện tại: số đo mới nhất của mỗi điểm ngập + báo cáo đã xác nhận còn hiệu lực."""
+def fetch_flood_sources(use_ai_prediction: bool = False) -> list:
+    """
+    Mực nước hiện tại: số đo mới nhất của mỗi điểm ngập + báo cáo đã xác nhận còn hiệu lực.
+    Nếu use_ai_prediction=True, kết hợp mô hình AI Scikit-learn dự báo 30 phút để chặn đường sớm.
+    """
     with pool.connection() as conn:
         points = conn.execute(POINTS_SQL).fetchall()
         reports = conn.execute(REPORTS_SQL).fetchall()
 
-    sources = [
-        {"lng": p["lng"], "lat": p["lat"], "depth_cm": float(p["depth_cm"]),
-         "threshold_cm": p["threshold_cm"], "name": p["name"], "kind": "point", "source_id": p["id"]}
-        for p in points
-    ]
+    ai_model = None
+    if use_ai_prediction:
+        try:
+            from .routers.prediction import get_models
+            m30, _ = get_models()
+            ai_model = m30
+        except Exception:
+            ai_model = None
+
+    sources = []
+    for p in points:
+        d = float(p["depth_cm"])
+        predicted_d = d
+        if ai_model is not None and d >= 5.0:
+            try:
+                features = np.array([[d, max(5.0, d * 0.8), max(8.0, d * 1.2), 1.2]])
+                predicted_d = max(d, float(ai_model.predict(features)[0]))
+            except Exception:
+                predicted_d = d
+
+        sources.append({
+            "lng": p["lng"], "lat": p["lat"], "depth_cm": round(predicted_d, 1),
+            "threshold_cm": p["threshold_cm"],
+            "name": p["name"] + (" (Dự báo AI +30p)" if predicted_d > d else ""),
+            "kind": "point", "source_id": p["id"]
+        })
+
     sources += [
         {"lng": r["lng"], "lat": r["lat"], "depth_cm": float(config.LEVEL_DEPTH_CM[r["level"]]),
          "threshold_cm": 20, "name": "Báo cáo của người dân", "kind": "report", "source_id": r["id"]}

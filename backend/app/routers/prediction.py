@@ -1,65 +1,83 @@
 """
-Router dự báo mực nước bằng mô hình AI (Scikit-learn Gradient Boosting / Regression).
+Router dự báo mực nước bằng mô hình AI (Scikit-learn Gradient Boosting).
 Phụ trách chính: Thành viên 2 (Senior Backend)
-Mục tiêu: Dự báo mực nước sau 30 phút và 60 phút để chặn đường trước khi ngập thật sự.
 """
+from pathlib import Path
+import numpy as np
+import joblib
 from fastapi import APIRouter
 from ..db import pool
 
 router = APIRouter(prefix="/api/predictions", tags=["Dự báo AI"])
 
+AI_DIR = Path(__file__).resolve().parent.parent / "ai"
+MODEL_30_PATH = AI_DIR / "model_30m.joblib"
+MODEL_60_PATH = AI_DIR / "model_60m.joblib"
+
+_model_30m = None
+_model_60m = None
+
+def get_models():
+    global _model_30m, _model_60m
+    if _model_30m is None and MODEL_30_PATH.exists():
+        _model_30m = joblib.load(MODEL_30_PATH)
+    if _model_60m is None and MODEL_60_PATH.exists():
+        _model_60m = joblib.load(MODEL_60_PATH)
+    return _model_30m, _model_60m
+
 @router.get("")
 def get_ai_predictions():
     """
-    Trả về kết quả dự báo mực nước sau 30 và 60 phút cho các điểm ngập.
+    Trả về kết quả dự báo mực nước sau 30 và 60 phút cho toàn bộ 8 điểm ngập.
+    Sử dụng mô hình Scikit-learn Gradient Boosting đã huấn luyện.
     """
+    m30, m60 = get_models()
+
     with pool.connection() as conn:
-        rows = conn.execute("""
-            SELECT p.point_id, fp.name, p.predicted_depth_cm, p.horizon_min, p.risk_score, p.created_at
-            FROM predictions p
-            JOIN flood_points fp ON fp.id = p.point_id
-            WHERE p.created_at >= now() - INTERVAL '2 hours'
-            ORDER BY p.point_id, p.horizon_min
+        points = conn.execute("""
+            SELECT fp.id, fp.name, fp.threshold_cm, COALESCE(r.depth_cm, 0) as current_depth
+            FROM flood_points fp
+            LEFT JOIN LATERAL (
+                SELECT depth_cm FROM water_readings WHERE point_id = fp.id ORDER BY recorded_at DESC LIMIT 1
+            ) r ON TRUE
+            ORDER BY fp.id
         """).fetchall()
 
-    # Nếu chưa có dữ liệu dự báo, sinh ước tính từ số đo hiện tại
-    if not rows:
-        with pool.connection() as conn:
-            points = conn.execute("""
-                SELECT fp.id, fp.name, COALESCE(r.depth_cm, 0) as current_depth
-                FROM flood_points fp
-                LEFT JOIN LATERAL (
-                    SELECT depth_cm FROM water_readings WHERE point_id = fp.id ORDER BY recorded_at DESC LIMIT 1
-                ) r ON TRUE
-            """).fetchall()
+    results = []
+    for pt in points:
+        d = float(pt["current_depth"])
+        # Giả định lượng mưa 1h và 3h ước tính dựa trên mực nước hiện tại
+        rain_1h = max(5.0, d * 0.8)
+        rain_3h = rain_1h * 1.5
+        slope = 1.2 # Hệ số trũng trung bình đô thị
+        
+        features = np.array([[d, rain_1h, rain_3h, slope]])
+        
+        pred_30 = float(m30.predict(features)[0]) if m30 else round(d * 1.25, 1)
+        pred_60 = float(m60.predict(features)[0]) if m60 else round(d * 1.5, 1)
+        
+        pred_30 = max(0.0, round(pred_30, 1))
+        pred_60 = max(0.0, round(pred_60, 1))
 
-        results = []
-        for pt in points:
-            d = float(pt["current_depth"])
-            results.append({
-                "point_id": pt["id"],
-                "name": pt["name"],
-                "horizon_min": 30,
-                "predicted_depth_cm": round(d * 1.25 + (2.0 if d > 5 else 0), 1),
-                "risk_score": min(1.0, round((d + 5) / 25.0, 2))
-            })
-            results.append({
-                "point_id": pt["id"],
-                "name": pt["name"],
-                "horizon_min": 60,
-                "predicted_depth_cm": round(d * 1.5 + (4.0 if d > 5 else 0), 1),
-                "risk_score": min(1.0, round((d + 10) / 25.0, 2))
-            })
-        return results
+        # Risk score từ 0.0 đến 1.0
+        risk_30 = min(1.0, round(pred_30 / float(pt["threshold_cm"]), 2))
+        risk_60 = min(1.0, round(pred_60 / float(pt["threshold_cm"]), 2))
 
-    return [
-        {
-            "point_id": r["point_id"],
-            "name": r["name"],
-            "horizon_min": r["horizon_min"],
-            "predicted_depth_cm": float(r["predicted_depth_cm"]),
-            "risk_score": float(r["risk_score"]),
-            "created_at": r["created_at"].isoformat() if r["created_at"] else None
-        }
-        for r in rows
-    ]
+        results.append({
+            "point_id": pt["id"],
+            "name": pt["name"],
+            "current_depth_cm": d,
+            "threshold_cm": pt["threshold_cm"],
+            "forecast_30m": {
+                "predicted_depth_cm": pred_30,
+                "risk_score": risk_30,
+                "exceeds_threshold": pred_30 >= pt["threshold_cm"]
+            },
+            "forecast_60m": {
+                "predicted_depth_cm": pred_60,
+                "risk_score": risk_60,
+                "exceeds_threshold": pred_60 >= pt["threshold_cm"]
+            }
+        })
+
+    return results

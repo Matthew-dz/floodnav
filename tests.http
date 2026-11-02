@@ -71,3 +71,20 @@ POST {{base}}/reports/clear
 Content-Type: application/json
 
 { "lng": 105.8300, "lat": 21.0000 }
+
+### 15. [Thành viên 2] Lấy dự báo lượng mưa Hà Nội 24h (Open-Meteo)
+GET {{base}}/weather/hanoi
+
+### 16. [Thành viên 2] Dự báo ngập AI Scikit-learn (+30p, +60p)
+GET {{base}}/predictions
+
+### 17. [Thành viên 2] Định tuyến thông minh né ngập kết hợp Dự báo AI
+POST {{base}}/route
+Content-Type: application/json
+
+{
+  "origin": { "lng": 105.780, "lat": 21.037 },
+  "destination": { "lng": 105.812, "lat": 21.011 },
+  "vehicle": "motorbike",
+  "use_ai_prediction": true
+}
