@@ -2,12 +2,15 @@
 Router dự báo mực nước bằng mô hình AI (Scikit-learn Gradient Boosting).
 Phụ trách chính: Thành viên 2 (Senior Backend)
 """
+import logging
 from pathlib import Path
 import numpy as np
 import joblib
 from fastapi import APIRouter
 from ..db import pool
+from .flood_points import DEFAULT_FLOOD_POINTS
 
+log = logging.getLogger("floodnav.prediction")
 router = APIRouter(prefix="/api/predictions", tags=["Dự báo AI"])
 
 AI_DIR = Path(__file__).resolve().parent.parent / "ai"
@@ -33,15 +36,28 @@ def get_ai_predictions():
     """
     m30, m60 = get_models()
 
-    with pool.connection() as conn:
-        points = conn.execute("""
-            SELECT fp.id, fp.name, fp.threshold_cm, COALESCE(r.depth_cm, 0) as current_depth
-            FROM flood_points fp
-            LEFT JOIN LATERAL (
-                SELECT depth_cm FROM water_readings WHERE point_id = fp.id ORDER BY recorded_at DESC LIMIT 1
-            ) r ON TRUE
-            ORDER BY fp.id
-        """).fetchall()
+    points = []
+    try:
+        with pool.connection(timeout=3.0) as conn:
+            points = conn.execute("""
+                SELECT fp.id, fp.name, fp.threshold_cm, COALESCE(r.depth_cm, 0) as current_depth
+                FROM flood_points fp
+                LEFT JOIN LATERAL (
+                    SELECT depth_cm FROM water_readings WHERE point_id = fp.id ORDER BY recorded_at DESC LIMIT 1
+                ) r ON TRUE
+                ORDER BY fp.id
+            """).fetchall()
+    except Exception as e:
+        log.warning("DB query failed in get_ai_predictions, using fallback data: %s", e)
+        points = [
+            {
+                "id": p["id"],
+                "name": p["name"],
+                "threshold_cm": p["threshold_cm"],
+                "current_depth": p.get("depth_cm", 0.0)
+            }
+            for p in DEFAULT_FLOOD_POINTS
+        ]
 
     results = []
     for pt in points:

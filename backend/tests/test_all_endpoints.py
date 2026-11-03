@@ -1,17 +1,23 @@
 """
 Bộ kiểm thử tự động (Unit Test & Benchmark) cho toàn bộ hệ thống FloodNav.
 Phụ trách chính: Thành viên 2 (Senior Backend)
-Chạy: python -m unittest discover -s backend/tests
+Chạy: python -m unittest discover -s tests
 """
 import time
 import unittest
 from fastapi.testclient import TestClient
 from app.main import app
+from app.graph import get_graph
 
 class TestFloodNavBackend(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.client = TestClient(app)
+        # Khởi động trước đồ thị (warm-up) để đo benchmark chuẩn xác thời gian giải thuật A*/Dijkstra
+        try:
+            get_graph()
+        except Exception:
+            pass
 
     def test_01_health_check(self):
         """Kiểm tra kết nối PostgreSQL và PostGIS."""
@@ -70,7 +76,7 @@ class TestFloodNavBackend(unittest.TestCase):
         self.assertTrue(data["safe"]["found"])
         
         print(f"\n[Benchmark] Thời gian tìm đường A* né ngập (2235 nút): {elapsed_ms:.2f} ms")
-        self.assertLess(elapsed_ms, 1500) # Đảm bảo thuật toán phản hồi nhanh dưới 1.5s
+        self.assertLess(elapsed_ms, 500) # Đảm bảo thuật toán phản hồi siêu nhanh dưới 500ms
 
 if __name__ == "__main__":
     unittest.main()
