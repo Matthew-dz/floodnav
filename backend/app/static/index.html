@@ -52,6 +52,17 @@
           </select>
         </div>
 
+        <!-- Thanh trượt lượng mưa (Thành viên 3) -->
+        <div class="hidden md:flex items-center gap-2 bg-white/15 border border-white/20 rounded-lg px-2.5 py-1.5">
+          <span class="text-xs">🌧️</span>
+          <input id="storm-slider" type="range" min="0" max="100" step="5" value="0"
+                 class="w-28 accent-cyan-300 cursor-pointer"
+                 oninput="StormSimulator.onSliderInput(this.value)"
+                 title="Kéo để tăng/giảm lượng mưa - mực nước 8 cảm biến thay đổi theo">
+          <span id="storm-slider-value" class="text-xs font-mono w-14 text-right">0 mm/h</span>
+          <span id="sim-current-scenario" class="hidden"></span>
+        </div>
+
         <!-- Urban Dashboard Modal Trigger (Thành viên 3) -->
         <button onclick="FloodDashboard.openDashboard()" title="Mở Dashboard Thống kê Đô thị" class="px-2.5 py-1.5 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-semibold flex items-center gap-1 transition">
           <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-300"></i>
@@ -357,16 +368,19 @@
        Nhúng các file JS độc lập (Zero-Conflict)
        ======================================================== -->
   <!-- 1. Controller Bản đồ chính (Thành viên 1) -->
-  <script src="/static/js/map_core.js?v=3.0"></script>
+  <script src="/static/js/map_core.js?v=3.1"></script>
 
   <!-- 2. Module Cảnh báo Giọng nói Tiếng Việt (Thành viên 3) -->
-  <script src="/static/js/voice_warning.js?v=3.0"></script>
+  <script src="/static/js/voice_warning.js?v=3.1"></script>
+
+  <!-- 2b. Module Mô phỏng xe di chuyển -->
+  <script src="/static/js/vehicle_sim.js?v=3.1"></script>
 
   <!-- 3. Module Giả lập Kịch bản Mưa Bão (Thành viên 3) -->
-  <script src="/static/js/storm_simulator.js?v=3.0"></script>
+  <script src="/static/js/storm_simulator.js?v=3.1"></script>
 
   <!-- 4. Module Dashboard Thống kê Đô thị (Thành viên 3) -->
-  <script src="/static/js/dashboard.js?v=3.0"></script>
+  <script src="/static/js/dashboard.js?v=3.1"></script>
 
   <!-- Khởi động khi tải xong trang -->
   <script>

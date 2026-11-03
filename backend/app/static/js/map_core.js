@@ -404,9 +404,16 @@ function renderRoute(data) {
     }).addTo(map);
 
     map.fitBounds(routeLayers.safe.getBounds(), { padding: [50, 50] });
+
+    // Mô phỏng xe chạy dọc lộ trình an toàn (vehicle_sim.js)
+    if (window.VehicleSim) {
+      const v = document.querySelector('input[name="vehicle"]:checked');
+      VehicleSim.start(latlngs, v ? v.value : 'motorbike');
+    }
   } else {
     document.getElementById('safe-dist').innerText = '--';
     document.getElementById('safe-time').innerText = '--';
+    if (window.VehicleSim) VehicleSim.stop();
     document.getElementById('safe-warnings').innerHTML = '<span class="text-rose-600 font-bold">Không còn đường đi an toàn do các ngả đều ngập sâu quá ngưỡng!</span>';
   }
 
