@@ -1,520 +1,1068 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FloodNav - Bản đồ Cảnh báo & Định tuyến Tránh Ngập Hà Nội</title>
-  
-  <!-- Tailwind CSS CDN (MIT License) -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Leaflet CSS & JS (BSD-2-Clause) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Chart.js for Urban Dashboard (MIT License) -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <!-- Lucide Icons (ISC License) -->
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- Custom Styles (Phụ trách: Thành viên 1) -->
-  <link rel="stylesheet" href="/static/css/style.css?v=5.2" />
-</head>
-<body class="bg-slate-100 text-slate-800 h-screen flex flex-col font-sans overflow-hidden transition-colors duration-300">
-
-  <!-- Header (FE-02: Responsive Mobile & Desktop Navbar) -->
-  <header class="bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white shadow-md z-40 flex-shrink-0">
-    <div class="w-full px-3 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between gap-1.5 sm:gap-2">
-      <div class="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
-        <div class="p-1.5 sm:p-2 bg-white/20 rounded-xl backdrop-blur-sm shadow-inner flex-shrink-0">
-          <i data-lucide="waves" class="w-5 h-5 sm:w-6 sm:h-6 text-cyan-200"></i>
-        </div>
-        <div>
-          <h1 class="text-base sm:text-lg font-extrabold tracking-tight flex items-center gap-1.5 sm:gap-2">
-            FloodNav <span class="text-[10px] sm:text-[11px] font-bold px-1.5 sm:px-2 py-0.5 bg-cyan-400 text-slate-900 rounded-full shadow-sm">Hà Nội</span>
-          </h1>
-          <p class="text-[11px] text-blue-100 hidden sm:block">Hệ thống Định tuyến Thông minh & Cảnh báo Ngập lụt Thời gian thực</p>
-        </div>
-      </div>
-
-      <!-- Quick Action Controls (Co giãn mượt mà trên Mobile) -->
-      <div class="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
-        <!-- Voice Toggle (Thành viên 3) -->
-        <button onclick="VoiceWarning.toggleVoice()" title="Bật/Tắt Cảnh báo Giọng nói Tiếng Việt" class="p-1.5 sm:p-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-medium transition flex items-center gap-1 flex-shrink-0">
-          <i id="voice-toggle-icon" data-lucide="volume-2" class="w-4 h-4 text-cyan-200"></i>
-          <span class="hidden md:inline text-xs">Giọng nói</span>
-        </button>
-
-        <!-- Storm Simulator Dropdown (Thành viên 3) -->
-        <div class="relative inline-block text-left flex-shrink-0">
-          <select onchange="StormSimulator.applyScenario(this.value)" class="bg-white/15 hover:bg-white/25 border border-white/20 text-white text-[11px] sm:text-xs font-semibold rounded-lg px-1.5 sm:px-2.5 py-1 sm:py-1.5 outline-none cursor-pointer backdrop-blur-sm max-w-[105px] sm:max-w-none">
-            <option value="clear" class="text-slate-900">☀️ Tạnh (0mm)</option>
-            <option value="light_rain" class="text-slate-900">🌦️ Mưa (20mm)</option>
-            <option value="heavy_storm" class="text-slate-900">⛈️ Lớn (50mm)</option>
-            <option value="extreme_flood" class="text-slate-900">🌊 Bão (100mm)</option>
-          </select>
-        </div>
-
-        <!-- Urban Dashboard Modal Trigger (Thành viên 3) -->
-        <button onclick="FloodDashboard.openDashboard()" title="Mở Dashboard Thống kê Đô thị" class="p-1.5 sm:px-2.5 sm:py-1.5 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-semibold flex items-center gap-1 transition flex-shrink-0">
-          <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-300"></i>
-          <span class="hidden md:inline text-xs">Thống kê</span>
-        </button>
-
-        <!-- Dark Mode Toggle (Thành viên 1) -->
-        <button onclick="toggleDarkMode()" title="Chuyển chế độ Sáng / Tối" class="p-1.5 sm:p-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs transition flex-shrink-0">
-          <i id="dark-mode-icon" data-lucide="moon" class="w-4 h-4"></i>
-        </button>
-
-        <!-- Help Tour Modal Trigger (FE-05) -->
-        <button onclick="openHelpGuide()" title="Hướng dẫn sử dụng nhanh" class="p-1.5 sm:p-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-bold transition flex items-center gap-1 text-cyan-200 flex-shrink-0">
-          <i data-lucide="help-circle" class="w-4 h-4"></i>
-        </button>
-
-        <!-- Refresh Data -->
-        <button onclick="loadFloodPoints()" class="p-1.5 sm:p-2 bg-cyan-400 hover:bg-cyan-300 text-slate-900 rounded-lg text-xs font-bold shadow transition flex-shrink-0" title="Làm mới dữ liệu">
-          <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <!-- Main Work Area (Hỗ trợ Mobile Full-screen Map & Collapsible Drawer) -->
-  <div class="flex-1 flex flex-col sm:flex-row relative overflow-hidden">
-
-    <!-- Left Sidebar Control Panel (Thành viên 1) -->
-    <aside id="sidebar-panel" class="fixed inset-x-0 bottom-0 top-[48px] sm:top-0 sm:relative sm:inset-auto w-full sm:w-[420px] bg-white shadow-2xl z-30 flex flex-col h-[calc(100vh-48px)] sm:h-full border-r border-slate-200 transition-transform duration-300 translate-y-0">
-      
-      <!-- Mobile Bar: Drag indicator & Thu gọn xem bản đồ (sm:hidden) -->
-      <div class="sm:hidden flex items-center justify-between px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex-shrink-0">
-        <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-          <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-blue-600"></i> Bảng điều khiển tìm đường
-        </span>
-        <button type="button" onclick="toggleMobilePanel(false)" class="flex items-center gap-1 text-xs font-bold text-blue-600 bg-white border border-blue-200 px-3 py-1 rounded-lg hover:bg-blue-50 active:scale-95 shadow-sm transition">
-          <i data-lucide="map" class="w-3.5 h-3.5"></i>
-          <span>Xem bản đồ</span>
-        </button>
-      </div>
-      
-      <!-- Tabs Navigation -->
-      <div class="flex border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
-        <button onclick="switchTab('route')" id="tab-btn-route" class="flex-1 py-3 px-2 border-b-2 border-blue-600 text-blue-600 flex items-center justify-center gap-1.5 transition font-bold">
-          <i data-lucide="navigation" class="w-4 h-4"></i>
-          <span>Tìm đường</span>
-        </button>
-        <button onclick="switchTab('points')" id="tab-btn-points" class="flex-1 py-3 px-2 border-b-2 border-transparent hover:text-slate-900 flex items-center justify-center gap-1.5 transition">
-          <i data-lucide="alert-triangle" class="w-4 h-4"></i>
-          <span>Điểm ngập (<span id="points-count">75</span>)</span>
-        </button>
-        <button onclick="switchTab('report')" id="tab-btn-report" class="flex-1 py-3 px-2 border-b-2 border-transparent hover:text-slate-900 flex items-center justify-center gap-1.5 transition">
-          <i data-lucide="send" class="w-4 h-4"></i>
-          <span>Báo ngập</span>
-        </button>
-      </div>
-
-      <!-- Tab Contents Area -->
-      <div class="flex-1 overflow-y-auto p-4 space-y-4">
-
-        <!-- TAB 1: TÌM ĐƯỜNG TRÁNH NGẬP -->
-        <div id="tab-route" class="space-y-4">
-          <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800 flex items-start gap-2">
-            <i data-lucide="info" class="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-600"></i>
-            <div>
-              Thuật toán Dijkstra sẽ tự động <strong>phạt nặng</strong> các điểm ngập sâu và <strong>chặn hoàn toàn</strong> những đoạn đường vượt ngưỡng chịu ngập của xe bạn.
-            </div>
-          </div>
-
-          <!-- Vehicle selection -->
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Loại phương tiện</label>
-            <div class="grid grid-cols-2 gap-2">
-              <label class="flex items-center gap-2 p-2.5 rounded-xl border-2 cursor-pointer transition has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50/50 hover:bg-slate-50 border-slate-200">
-                <input type="radio" name="vehicle" value="motorbike" checked class="text-blue-600" onchange="onVehicleChange()">
-                <div class="flex flex-col">
-                  <span class="text-xs font-bold text-slate-800 flex items-center gap-1">
-                    <i data-lucide="bike" class="w-3.5 h-3.5"></i> Xe máy
-                  </span>
-                  <span class="text-[10px] text-slate-500">Chặn khi ngập ≥ 20cm</span>
-                </div>
-              </label>
-
-              <label class="flex items-center gap-2 p-2.5 rounded-xl border-2 cursor-pointer transition has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50/50 hover:bg-slate-50 border-slate-200">
-                <input type="radio" name="vehicle" value="car" class="text-blue-600" onchange="onVehicleChange()">
-                <div class="flex flex-col">
-                  <span class="text-xs font-bold text-slate-800 flex items-center gap-1">
-                    <i data-lucide="car" class="w-3.5 h-3.5"></i> Ô tô
-                  </span>
-                  <span class="text-[10px] text-slate-500">Chặn khi ngập ≥ 30cm</span>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <!-- Origin & Destination -->
-          <div class="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
-            <!-- Điểm xuất phát -->
-            <div class="relative">
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-xs font-bold text-slate-700 flex items-center gap-1">
-                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Điểm xuất phát
-                </span>
-                <button type="button" onclick="setPickMode('origin')" id="btn-pick-origin" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5">
-                  <i data-lucide="crosshair" class="w-3 h-3"></i> <span>Chỉ định trên bản đồ</span>
-                </button>
-              </div>
-              <div class="relative">
-                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-500 absolute left-2.5 top-2.5 pointer-events-none"></i>
-                <input type="text" id="origin-text" placeholder="Nhập địa chỉ (VD: Xuân Thủy, Cầu Giấy...)" 
-                       class="w-full pl-8 pr-7 py-2 bg-white text-xs border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
-                       autocomplete="off"
-                       oninput="handleAddressInput('origin', this.value)"
-                       onkeydown="handleAddressKeydown(event, 'origin')">
-                <button type="button" onclick="clearLocation('origin')" id="btn-clear-origin" class="hidden absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600">
-                  <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                </button>
-              </div>
-              <!-- Autocomplete suggestions dropdown -->
-              <div id="origin-suggestions" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] max-h-52 overflow-y-auto divide-y divide-slate-100 text-xs"></div>
-            </div>
-
-            <!-- Điểm đến -->
-            <div class="relative">
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-xs font-bold text-slate-700 flex items-center gap-1">
-                  <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Điểm đến
-                </span>
-                <button type="button" onclick="setPickMode('destination')" id="btn-pick-dest" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5">
-                  <i data-lucide="crosshair" class="w-3 h-3"></i> <span>Chỉ định trên bản đồ</span>
-                </button>
-              </div>
-              <div class="relative">
-                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-rose-500 absolute left-2.5 top-2.5 pointer-events-none"></i>
-                <input type="text" id="dest-text" placeholder="Nhập địa chỉ (VD: Láng Hạ, Chùa Bộc...)" 
-                       class="w-full pl-8 pr-7 py-2 bg-white text-xs border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
-                       autocomplete="off"
-                       oninput="handleAddressInput('destination', this.value)"
-                       onkeydown="handleAddressKeydown(event, 'destination')">
-                <button type="button" onclick="clearLocation('destination')" id="btn-clear-dest" class="hidden absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600">
-                  <i data-lucide="x" class="w-3.5 h-3.5"></i>
-                </button>
-              </div>
-              <!-- Autocomplete suggestions dropdown -->
-              <div id="dest-suggestions" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] max-h-52 overflow-y-auto divide-y divide-slate-100 text-xs"></div>
-            </div>
-
-            <div class="pt-1">
-              <span class="text-[11px] font-medium text-slate-500 block mb-1">Thử nhanh tuyến mẫu:</span>
-              <div class="flex flex-wrap gap-1.5">
-                <button onclick="setPresetRoute(105.780, 21.037, 105.812, 21.011, 'Xuân Thủy ➔ Láng Hạ')" class="px-2 py-1 bg-white hover:bg-slate-200 border border-slate-300 rounded text-[11px] font-medium transition">
-                  Xuân Thủy ➔ Láng Hạ
-                </button>
-                <button onclick="setPresetRoute(105.777, 21.028, 105.826, 21.008, 'Phạm Hùng ➔ Chùa Bộc')" class="px-2 py-1 bg-white hover:bg-slate-200 border border-slate-300 rounded text-[11px] font-medium transition">
-                  Phạm Hùng ➔ Chùa Bộc
-                </button>
-                <button onclick="setPresetRoute(105.795, 21.046, 105.801, 21.010, 'HQV ➔ Trần Duy Hưng')" class="px-2 py-1 bg-white hover:bg-slate-200 border border-slate-300 rounded text-[11px] font-medium transition">
-                  HQV ➔ Trần Duy Hưng
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <!-- Submit Button -->
-          <button onclick="calculateRoute()" id="btn-submit-route" class="w-full py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 transition disabled:opacity-50">
-            <i data-lucide="compass" class="w-5 h-5"></i>
-            <span>Tìm Lộ Trình Né Ngập</span>
-          </button>
-
-          <!-- Route Results Card -->
-          <div id="route-results" class="hidden space-y-3 pt-2">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600">Kết quả lộ trình</h3>
-            
-            <!-- Safe Route Card -->
-            <div id="card-safe-route" class="p-3.5 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-500 rounded-xl shadow-sm">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-extrabold text-emerald-800 flex items-center gap-1.5">
-                  <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i> Lộ trình An Toàn (Đề xuất)
-                </span>
-                <span class="text-[10px] font-bold px-2 py-0.5 bg-emerald-600 text-white rounded-full">Khuyên dùng</span>
-              </div>
-              <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-emerald-200/60 text-xs text-slate-700">
-                <div>
-                  <span class="text-slate-500 block text-[10px]">Khoảng cách</span>
-                  <span class="text-sm font-bold text-slate-900" id="safe-dist">--</span>
-                </div>
-                <div>
-                  <span class="text-slate-500 block text-[10px]">Thời gian ước tính</span>
-                  <span class="text-sm font-bold text-slate-900" id="safe-time">--</span>
-                </div>
-              </div>
-              <div id="safe-warnings" class="mt-2 text-[11px] text-emerald-700 font-medium"></div>
-            </div>
-
-            <!-- Fastest Route Card -->
-            <div id="card-fastest-route" class="p-3.5 bg-slate-50 border border-slate-300 rounded-xl">
-              <div class="flex items-center justify-between">
-                <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <i data-lucide="zap" class="w-4 h-4 text-amber-500"></i> Lộ trình Nhanh Nhất (Gốc)
-                </span>
-                <span id="fastest-badge" class="text-[10px] font-semibold px-2 py-0.5 bg-slate-200 text-slate-700 rounded-full">--</span>
-              </div>
-              <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-200 text-xs text-slate-700">
-                <div>
-                  <span class="text-slate-500 block text-[10px]">Khoảng cách</span>
-                  <span class="text-sm font-bold text-slate-900" id="fastest-dist">--</span>
-                </div>
-                <div>
-                  <span class="text-slate-500 block text-[10px]">Thời gian</span>
-                  <span class="text-sm font-bold text-slate-900" id="fastest-time">--</span>
-                </div>
-              </div>
-              <div id="fastest-warnings" class="mt-2 text-[11px] font-medium text-rose-600"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- TAB 2: DANH SÁCH ĐIỂM NGẬP -->
-        <div id="tab-points" class="hidden space-y-3">
-          <div class="text-xs text-slate-600">
-            Dữ liệu quan trắc từ cảm biến mực nước IoT. Bạn có thể kéo thanh trượt để giả lập mưa lớn làm thay đổi lộ trình tức thì!
-          </div>
-          <div class="flex items-center justify-between bg-slate-100 p-2.5 rounded-xl text-xs border border-slate-200">
-            <span class="font-bold text-slate-700 flex items-center gap-1.5" id="points-viewport-summary">
-              <i data-lucide="eye" class="w-3.5 h-3.5 text-blue-600"></i> Trong khung nhìn: 0 / 75 điểm
-            </span>
-            <button onclick="zoomToAllPoints()" class="text-[11px] text-blue-600 font-semibold hover:underline flex items-center gap-1">
-              <i data-lucide="maximize" class="w-3 h-3"></i> Toàn cảnh
-            </button>
-          </div>
-          <div id="points-list" class="space-y-2"></div>
-        </div>
-
-        <!-- TAB 3: BÁO CÁO NGƯỜI DÂN -->
-        <div id="tab-report" class="hidden space-y-4">
-          <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-xs text-indigo-800">
-            Người dân có thể báo ngập nhanh tại vị trí đang đứng. Báo cáo được tự động xác nhận khi có ≥ 3 người cùng báo hoặc khớp số đo cảm biến lân cận!
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1">Vị trí điểm ngập</label>
-            <button onclick="setPickMode('report')" id="btn-pick-report" class="w-full py-2 px-3 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center justify-center gap-1.5">
-              <i data-lucide="map-pin" class="w-4 h-4 text-rose-500"></i>
-              <span id="report-coord-text">Nhấp vào đây rồi bấm lên bản đồ</span>
-            </button>
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Mức độ ngập ước lượng</label>
-            <div class="space-y-2">
-              <label class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer border-slate-200 hover:bg-slate-50 has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50/50">
-                <input type="radio" name="report_level" value="light" checked class="text-amber-500">
-                <div>
-                  <span class="text-xs font-bold text-slate-800">Ngập nhẹ (~10 cm)</span>
-                  <span class="text-[10px] text-slate-500 block">Nước ngập nửa bánh xe máy, đi chậm vẫn qua được</span>
-                </div>
-              </label>
-              <label class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer border-slate-200 hover:bg-slate-50 has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50/50">
-                <input type="radio" name="report_level" value="medium" class="text-orange-500">
-                <div>
-                  <span class="text-xs font-bold text-slate-800">Ngập trung bình (~25 cm)</span>
-                  <span class="text-[10px] text-slate-500 block">Nước ngập lút ống xả xe máy, xe máy nên quay đầu</span>
-                </div>
-              </label>
-              <label class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer border-slate-200 hover:bg-slate-50 has-[:checked]:border-rose-600 has-[:checked]:bg-rose-50/50">
-                <input type="radio" name="report_level" value="heavy" class="text-rose-600">
-                <div>
-                  <span class="text-xs font-bold text-slate-800">Ngập sâu nguy hiểm (~40 cm)</span>
-                  <span class="text-[10px] text-slate-500 block">Ngập qua gầm ô tô con, tê liệt mọi phương tiện</span>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <button onclick="submitReport()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 transition">
-            <i data-lucide="send" class="w-4 h-4"></i>
-            <span>Gửi Báo Cáo Ngập</span>
-          </button>
-        </div>
-
-      </div>
-
-      <!-- Footer Legend -->
-      <div class="p-3 bg-slate-50 border-t border-slate-200 text-[11px] text-slate-600 flex items-center justify-between">
-        <span class="font-bold text-slate-700">Chú giải:</span>
-        <div class="flex items-center gap-3">
-          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> &lt;5cm An toàn</span>
-          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> 5-20cm Chú ý</span>
-          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-600"></span> &gt;20cm Nguy hiểm</span>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Map Canvas Container (Hiển thị 100% không gian trên Mobile & Desktop) -->
-    <main class="w-full h-full flex-1 relative z-0">
-      <div id="map" class="w-full h-full"></div>
-
-      <!-- Map Floating Helper -->
-      <div id="pick-hint" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white px-4 py-2 rounded-full shadow-xl text-xs font-semibold backdrop-blur-sm z-[1000] flex items-center gap-2 border border-slate-700">
-        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-        <span id="pick-hint-text">Nhấp lên bản đồ để chọn vị trí...</span>
-        <button onclick="cancelPickMode()" class="ml-2 text-slate-400 hover:text-white">&times;</button>
-      </div>
-
-      <!-- Floating Viewport Alert (Hiện cảnh báo điểm ngập trong khung nhìn khi kéo bản đồ) -->
-      <div id="viewport-flood-alert" class="hidden absolute top-4 left-1/2 -translate-x-1/2 px-3.5 py-2 rounded-2xl shadow-xl text-xs font-semibold backdrop-blur-md z-[990] flex items-center gap-2.5 border transition-all duration-300 pointer-events-auto">
-        <div id="viewport-alert-icon" class="p-1 rounded-full flex-shrink-0">
-          <i data-lucide="alert-triangle" class="w-4 h-4"></i>
-        </div>
-        <div class="flex-1 truncate" id="viewport-alert-text">
-          Đang quét điểm ngập khu vực...
-        </div>
-        <button id="viewport-alert-btn" onclick="onViewportAlertClick()" class="hidden px-2.5 py-1 text-white text-[10px] font-bold rounded-lg transition flex-shrink-0 shadow">
-          Xem
-        </button>
-      </div>
-
-      <!-- Mobile Floating Route Summary Card (sm:hidden) -->
-      <div id="mobile-route-floating-card" class="hidden sm:hidden fixed bottom-16 left-3 right-3 bg-white/95 backdrop-blur-md rounded-2xl p-3 shadow-2xl border border-slate-200 z-[500] transition">
-        <div class="flex items-center justify-between">
-          <div class="flex-1 pr-2">
-            <div class="flex items-center gap-1.5">
-              <span class="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping"></span>
-              <span class="text-xs font-bold text-slate-800" id="mobile-card-title">Lộ trình né ngập an toàn</span>
-            </div>
-            <p class="text-[11px] text-slate-500 mt-0.5 truncate" id="mobile-card-subtitle">Khoảng cách và thời gian</p>
-          </div>
-          <button type="button" onclick="toggleMobilePanel(true)" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow flex items-center gap-1 active:scale-95 transition">
-            <i data-lucide="list" class="w-3.5 h-3.5"></i>
-            <span>Chi tiết</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Mobile Floating Button to Open Panel (sm:hidden) -->
-      <button id="btn-mobile-open-panel" type="button" onclick="toggleMobilePanel(true)" 
-              class="hidden sm:hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 z-[500] border border-white/60 active:scale-95 transition">
-        <i data-lucide="navigation" class="w-4 h-4 text-cyan-200"></i>
-        <span>Bảng tìm đường</span>
-      </button>
-    </main>
-
-  </div>
-
-  <!-- Modal Dashboard Thống kê Đô thị (Thành viên 3) -->
-  <div id="dashboard-modal" class="hidden fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onclick="if(event.target === this) FloodDashboard.closeDashboard()">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 space-y-4 border border-slate-200 max-h-[90vh] overflow-y-auto">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-        <div class="flex items-center gap-2">
-          <div class="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
-            <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
-          </div>
-          <div>
-            <h2 class="text-base font-bold text-slate-900">Trung Tâm Giám Sát Ngập Lụt Đô Thị Hà Nội</h2>
-            <p class="text-xs text-slate-500">Thống kê quan trắc từ 75 trạm cảm biến IoT trên toàn Hà Nội và báo cáo cộng đồng</p>
-          </div>
-        </div>
-        <button onclick="FloodDashboard.closeDashboard()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
-          <i data-lucide="x" class="w-6 h-6"></i>
-        </button>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Biểu đồ cột -->
-        <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
-          <h3 class="text-xs font-bold text-slate-700 mb-3 uppercase tracking-wider">Mực nước hiện tại tại các trạm</h3>
-          <div class="h-60">
-            <canvas id="chart-sensor-depths"></canvas>
-          </div>
-        </div>
-
-        <!-- Biểu đồ tròn -->
-        <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
-          <h3 class="text-xs font-bold text-slate-700 mb-3 uppercase tracking-wider">Tỷ lệ an toàn mạng lưới đường</h3>
-          <div class="h-60 flex items-center justify-center">
-            <canvas id="chart-status-ratio"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <div class="flex justify-end pt-2">
-        <button onclick="FloodDashboard.closeDashboard()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold rounded-lg transition">
-          Đóng
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal Hướng Dẫn Sử Dụng Nhanh (FE-05) -->
-  <div id="onboarding-modal" class="hidden fixed inset-0 z-[9999] bg-slate-900/65 backdrop-blur-sm flex items-center justify-center p-4" onclick="if(event.target === this) closeHelpGuide()">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-5 border border-slate-200">
-      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-        <div class="flex items-center gap-3">
-          <div class="p-2.5 bg-blue-100 text-blue-700 rounded-xl">
-            <i data-lucide="compass" class="w-6 h-6"></i>
-          </div>
-          <div>
-            <h2 class="text-base font-extrabold text-slate-900">Chào mừng đến với FloodNav 🌊</h2>
-            <p class="text-xs text-slate-500">Hệ thống Định tuyến Thông minh & Cảnh báo Ngập lụt Hà Nội</p>
-          </div>
-        </div>
-        <button onclick="closeHelpGuide()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-
-      <!-- 3 Steps Walkthrough -->
-      <div class="space-y-3">
-        <div class="flex items-start gap-3 p-3 bg-blue-50/70 rounded-xl border border-blue-100">
-          <div class="w-7 h-7 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0 mt-0.5">1</div>
-          <div class="text-xs">
-            <h4 class="font-bold text-slate-800">Tìm lộ trình né ngập thông minh (Dijkstra / A*)</h4>
-            <p class="text-slate-600 mt-0.5">Chọn loại xe (Xe máy &lt; 20cm / Ô tô &lt; 30cm) và bấm thử nhanh các tuyến mẫu như <em>Xuân Thủy ➔ Láng Hạ</em> để xem thuật toán tự động né các tuyến phố bị ngập.</p>
-          </div>
-        </div>
-
-        <div class="flex items-start gap-3 p-3 bg-indigo-50/70 rounded-xl border border-indigo-100">
-          <div class="w-7 h-7 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0 mt-0.5">2</div>
-          <div class="text-xs">
-            <h4 class="font-bold text-slate-800">Thử nghiệm Bộ Giả lập Mưa Bão (Kịch bản thời tiết)</h4>
-            <p class="text-slate-600 mt-0.5">Tại thanh công cụ phía trên, chọn kịch bản <strong>Mưa lớn (50mm)</strong> để giả lập nước dâng tại các trạm cảm biến IoT và xem hệ thống tính lại lộ trình tức thì.</p>
-          </div>
-        </div>
-
-        <div class="flex items-start gap-3 p-3 bg-emerald-50/70 rounded-xl border border-emerald-100">
-          <div class="w-7 h-7 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0 mt-0.5">3</div>
-          <div class="text-xs">
-            <h4 class="font-bold text-slate-800">Trợ lý giọng nói & Báo ngập cộng đồng</h4>
-            <p class="text-slate-600 mt-0.5">Hệ thống tự động phát âm thanh cảnh báo bằng giọng nói tiếng Việt khi chuẩn bị vào vùng ngập, cùng tính năng cho phép người dân gửi báo cáo ngập tại hiện trường.</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="flex items-center justify-between pt-2 border-t border-slate-100">
-        <span class="text-[11px] text-slate-400">Có thể mở lại hướng dẫn này bằng nút <strong>(?)</strong> trên Header</span>
-        <button onclick="closeHelpGuide()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/25 transition">
-          Bắt đầu Trải nghiệm 🚀
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========================================================
-       Nhúng các file JS độc lập (Zero-Conflict)
-       ======================================================== -->
-  <!-- 1. Controller Bản đồ chính (Thành viên 1 & 2) -->
-  <script src="/static/js/map_core.js?v=5.2"></script>
-
-  <!-- 2. Module Cảnh báo Giọng nói Tiếng Việt (Thành viên 3) -->
-  <script src="/static/js/voice_warning.js?v=5.0"></script>
-
-  <!-- 3. Module Giả lập Kịch bản Mưa Bão (Thành viên 3) -->
-  <script src="/static/js/storm_simulator.js?v=5.0"></script>
-
-  <!-- 4. Module Dashboard Thống kê Đô thị (Thành viên 3) -->
-  <script src="/static/js/dashboard.js?v=5.0"></script>
-
-  <!-- Khởi động khi tải xong trang -->
-  <script>
-    window.addEventListener('DOMContentLoaded', () => {
-      if (window.lucide) lucide.createIcons();
-      initMap();
-    });
-  </script>
-</body>
-</html>
+<!DOCTYPE html>
+
+<html lang="vi">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>FloodNav - Bản đồ Cảnh báo & Định tuyến Tránh Ngập Hà Nội</title>
+
+  
+
+  <!-- Tailwind CSS CDN (MIT License) -->
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Leaflet CSS & JS (BSD-2-Clause) -->
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Chart.js for Urban Dashboard (MIT License) -->
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Lucide Icons (ISC License) -->
+
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Custom Styles (Phụ trách: Thành viên 1) -->
+
+  <link rel="stylesheet" href="/static/css/style.css?v=5.2" />
+
+</head>
+
+<body class="bg-slate-100 text-slate-800 h-screen flex flex-col font-sans overflow-hidden transition-colors duration-300">
+
+
+
+  <!-- Header (FE-02: Responsive Mobile & Desktop Navbar) -->
+
+  <header class="bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white shadow-md z-40 flex-shrink-0">
+
+    <div class="w-full px-3 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between gap-1.5 sm:gap-2">
+
+      <div class="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
+
+        <div class="p-1.5 sm:p-2 bg-white/20 rounded-xl backdrop-blur-sm shadow-inner flex-shrink-0">
+
+          <i data-lucide="waves" class="w-5 h-5 sm:w-6 sm:h-6 text-cyan-200"></i>
+
+        </div>
+
+        <div>
+
+          <h1 class="text-base sm:text-lg font-extrabold tracking-tight flex items-center gap-1.5 sm:gap-2">
+
+            FloodNav <span class="text-[10px] sm:text-[11px] font-bold px-1.5 sm:px-2 py-0.5 bg-cyan-400 text-slate-900 rounded-full shadow-sm">Hà Nội</span>
+
+          </h1>
+
+          <p class="text-[11px] text-blue-100 hidden sm:block">Hệ thống Định tuyến Thông minh & Cảnh báo Ngập lụt Thời gian thực</p>
+
+        </div>
+
+      </div>
+
+
+
+      <!-- Quick Action Controls (Co giãn mượt mà trên Mobile) -->
+
+      <div class="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
+
+        <!-- Voice Toggle (Thành viên 3) -->
+
+        <button onclick="VoiceWarning.toggleVoice()" title="Bật/Tắt Cảnh báo Giọng nói Tiếng Việt" class="p-1.5 sm:p-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-medium transition flex items-center gap-1 flex-shrink-0">
+
+          <i id="voice-toggle-icon" data-lucide="volume-2" class="w-4 h-4 text-cyan-200"></i>
+
+          <span class="hidden md:inline text-xs">Giọng nói</span>
+
+        </button>
+
+
+
+        <!-- Storm Simulator Dropdown (Thành viên 3) -->
+
+        <div class="relative inline-block text-left flex-shrink-0">
+
+          <select onchange="StormSimulator.applyScenario(this.value)" class="bg-white/15 hover:bg-white/25 border border-white/20 text-white text-[11px] sm:text-xs font-semibold rounded-lg px-1.5 sm:px-2.5 py-1 sm:py-1.5 outline-none cursor-pointer backdrop-blur-sm max-w-[105px] sm:max-w-none">
+
+            <option value="clear" class="text-slate-900">☀️ Tạnh (0mm)</option>
+
+            <option value="light_rain" class="text-slate-900">🌦️ Mưa (20mm)</option>
+
+            <option value="heavy_storm" class="text-slate-900">⛈️ Lớn (50mm)</option>
+
+            <option value="extreme_flood" class="text-slate-900">🌊 Bão (100mm)</option>
+
+          </select>
+
+        </div>
+
+
+
+        <!-- Thanh trượt lượng mưa thời gian thực (Thành viên 3) -->
+
+        <div class="hidden md:flex items-center gap-1.5 sm:gap-2 bg-white/15 border border-white/20 rounded-lg px-2 sm:px-2.5 py-1 sm:py-1.5 flex-shrink-0">
+
+          <span class="text-xs">🌧️</span>
+
+          <input id="storm-slider" type="range" min="0" max="100" step="5" value="0"
+
+                 class="w-20 sm:w-28 accent-cyan-300 cursor-pointer"
+
+                 oninput="StormSimulator.onSliderInput(this.value)"
+
+                 title="Kéo để tăng/giảm lượng mưa mô phỏng (0 - 100 mm/h)">
+
+          <span id="storm-slider-value" class="text-[11px] sm:text-xs font-mono w-12 sm:w-14 text-right">0 mm/h</span>
+
+          <span id="sim-current-scenario" class="hidden"></span>
+
+        </div>
+
+
+
+        <!-- Urban Dashboard Modal Trigger (Thành viên 3) -->
+
+        <button onclick="FloodDashboard.openDashboard()" title="Mở Dashboard Thống kê Đô thị" class="p-1.5 sm:px-2.5 sm:py-1.5 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-semibold flex items-center gap-1 transition flex-shrink-0">
+
+          <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-300"></i>
+
+          <span class="hidden md:inline text-xs">Thống kê</span>
+
+        </button>
+
+
+
+        <!-- Dark Mode Toggle (Thành viên 1) -->
+
+        <button onclick="toggleDarkMode()" title="Chuyển chế độ Sáng / Tối" class="p-1.5 sm:p-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs transition flex-shrink-0">
+
+          <i id="dark-mode-icon" data-lucide="moon" class="w-4 h-4"></i>
+
+        </button>
+
+
+
+        <!-- Help Tour Modal Trigger (FE-05) -->
+
+        <button onclick="openHelpGuide()" title="Hướng dẫn sử dụng nhanh" class="p-1.5 sm:p-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-bold transition flex items-center gap-1 text-cyan-200 flex-shrink-0">
+
+          <i data-lucide="help-circle" class="w-4 h-4"></i>
+
+        </button>
+
+
+
+        <!-- Refresh Data -->
+
+        <button onclick="loadFloodPoints()" class="p-1.5 sm:p-2 bg-cyan-400 hover:bg-cyan-300 text-slate-900 rounded-lg text-xs font-bold shadow transition flex-shrink-0" title="Làm mới dữ liệu">
+
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+
+        </button>
+
+      </div>
+
+    </div>
+
+  </header>
+
+
+
+  <!-- Main Work Area (Hỗ trợ Mobile Full-screen Map & Collapsible Drawer) -->
+
+  <div class="flex-1 flex flex-col sm:flex-row relative overflow-hidden">
+
+
+
+    <!-- Left Sidebar Control Panel (Thành viên 1) -->
+
+    <aside id="sidebar-panel" class="fixed inset-x-0 bottom-0 top-[48px] sm:top-0 sm:relative sm:inset-auto w-full sm:w-[420px] bg-white shadow-2xl z-30 flex flex-col h-[calc(100vh-48px)] sm:h-full border-r border-slate-200 transition-transform duration-300 translate-y-0">
+
+      
+
+      <!-- Mobile Bar: Drag indicator & Thu gọn xem bản đồ (sm:hidden) -->
+
+      <div class="sm:hidden flex items-center justify-between px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex-shrink-0">
+
+        <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+
+          <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-blue-600"></i> Bảng điều khiển tìm đường
+
+        </span>
+
+        <button type="button" onclick="toggleMobilePanel(false)" class="flex items-center gap-1 text-xs font-bold text-blue-600 bg-white border border-blue-200 px-3 py-1 rounded-lg hover:bg-blue-50 active:scale-95 shadow-sm transition">
+
+          <i data-lucide="map" class="w-3.5 h-3.5"></i>
+
+          <span>Xem bản đồ</span>
+
+        </button>
+
+      </div>
+
+      
+
+      <!-- Tabs Navigation -->
+
+      <div class="flex border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
+
+        <button onclick="switchTab('route')" id="tab-btn-route" class="flex-1 py-3 px-2 border-b-2 border-blue-600 text-blue-600 flex items-center justify-center gap-1.5 transition font-bold">
+
+          <i data-lucide="navigation" class="w-4 h-4"></i>
+
+          <span>Tìm đường</span>
+
+        </button>
+
+        <button onclick="switchTab('points')" id="tab-btn-points" class="flex-1 py-3 px-2 border-b-2 border-transparent hover:text-slate-900 flex items-center justify-center gap-1.5 transition">
+
+          <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+
+          <span>Điểm ngập (<span id="points-count">75</span>)</span>
+
+        </button>
+
+        <button onclick="switchTab('report')" id="tab-btn-report" class="flex-1 py-3 px-2 border-b-2 border-transparent hover:text-slate-900 flex items-center justify-center gap-1.5 transition">
+
+          <i data-lucide="send" class="w-4 h-4"></i>
+
+          <span>Báo ngập</span>
+
+        </button>
+
+      </div>
+
+
+
+      <!-- Tab Contents Area -->
+
+      <div class="flex-1 overflow-y-auto p-4 space-y-4">
+
+
+
+        <!-- TAB 1: TÌM ĐƯỜNG TRÁNH NGẬP -->
+
+        <div id="tab-route" class="space-y-4">
+
+          <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800 flex items-start gap-2">
+
+            <i data-lucide="info" class="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-600"></i>
+
+            <div>
+
+              Thuật toán Dijkstra sẽ tự động <strong>phạt nặng</strong> các điểm ngập sâu và <strong>chặn hoàn toàn</strong> những đoạn đường vượt ngưỡng chịu ngập của xe bạn.
+
+            </div>
+
+          </div>
+
+
+
+          <!-- Vehicle selection -->
+
+          <div>
+
+            <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Loại phương tiện</label>
+
+            <div class="grid grid-cols-2 gap-2">
+
+              <label class="flex items-center gap-2 p-2.5 rounded-xl border-2 cursor-pointer transition has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50/50 hover:bg-slate-50 border-slate-200">
+
+                <input type="radio" name="vehicle" value="motorbike" checked class="text-blue-600" onchange="onVehicleChange()">
+
+                <div class="flex flex-col">
+
+                  <span class="text-xs font-bold text-slate-800 flex items-center gap-1">
+
+                    <i data-lucide="bike" class="w-3.5 h-3.5"></i> Xe máy
+
+                  </span>
+
+                  <span class="text-[10px] text-slate-500">Chặn khi ngập ≥ 20cm</span>
+
+                </div>
+
+              </label>
+
+
+
+              <label class="flex items-center gap-2 p-2.5 rounded-xl border-2 cursor-pointer transition has-[:checked]:border-blue-600 has-[:checked]:bg-blue-50/50 hover:bg-slate-50 border-slate-200">
+
+                <input type="radio" name="vehicle" value="car" class="text-blue-600" onchange="onVehicleChange()">
+
+                <div class="flex flex-col">
+
+                  <span class="text-xs font-bold text-slate-800 flex items-center gap-1">
+
+                    <i data-lucide="car" class="w-3.5 h-3.5"></i> Ô tô
+
+                  </span>
+
+                  <span class="text-[10px] text-slate-500">Chặn khi ngập ≥ 30cm</span>
+
+                </div>
+
+              </label>
+
+            </div>
+
+          </div>
+
+
+
+          <!-- Origin & Destination -->
+
+          <div class="space-y-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+
+            <!-- Điểm xuất phát -->
+
+            <div class="relative">
+
+              <div class="flex items-center justify-between mb-1">
+
+                <span class="text-xs font-bold text-slate-700 flex items-center gap-1">
+
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Điểm xuất phát
+
+                </span>
+
+                <button type="button" onclick="setPickMode('origin')" id="btn-pick-origin" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5">
+
+                  <i data-lucide="crosshair" class="w-3 h-3"></i> <span>Chỉ định trên bản đồ</span>
+
+                </button>
+
+              </div>
+
+              <div class="relative">
+
+                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-500 absolute left-2.5 top-2.5 pointer-events-none"></i>
+
+                <input type="text" id="origin-text" placeholder="Nhập địa chỉ (VD: Xuân Thủy, Cầu Giấy...)" 
+
+                       class="w-full pl-8 pr-7 py-2 bg-white text-xs border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+
+                       autocomplete="off"
+
+                       oninput="handleAddressInput('origin', this.value)"
+
+                       onkeydown="handleAddressKeydown(event, 'origin')">
+
+                <button type="button" onclick="clearLocation('origin')" id="btn-clear-origin" class="hidden absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600">
+
+                  <i data-lucide="x" class="w-3.5 h-3.5"></i>
+
+                </button>
+
+              </div>
+
+              <!-- Autocomplete suggestions dropdown -->
+
+              <div id="origin-suggestions" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] max-h-52 overflow-y-auto divide-y divide-slate-100 text-xs"></div>
+
+            </div>
+
+
+
+            <!-- Điểm đến -->
+
+            <div class="relative">
+
+              <div class="flex items-center justify-between mb-1">
+
+                <span class="text-xs font-bold text-slate-700 flex items-center gap-1">
+
+                  <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Điểm đến
+
+                </span>
+
+                <button type="button" onclick="setPickMode('destination')" id="btn-pick-dest" class="text-[11px] font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-0.5">
+
+                  <i data-lucide="crosshair" class="w-3 h-3"></i> <span>Chỉ định trên bản đồ</span>
+
+                </button>
+
+              </div>
+
+              <div class="relative">
+
+                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-rose-500 absolute left-2.5 top-2.5 pointer-events-none"></i>
+
+                <input type="text" id="dest-text" placeholder="Nhập địa chỉ (VD: Láng Hạ, Chùa Bộc...)" 
+
+                       class="w-full pl-8 pr-7 py-2 bg-white text-xs border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition"
+
+                       autocomplete="off"
+
+                       oninput="handleAddressInput('destination', this.value)"
+
+                       onkeydown="handleAddressKeydown(event, 'destination')">
+
+                <button type="button" onclick="clearLocation('destination')" id="btn-clear-dest" class="hidden absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600">
+
+                  <i data-lucide="x" class="w-3.5 h-3.5"></i>
+
+                </button>
+
+              </div>
+
+              <!-- Autocomplete suggestions dropdown -->
+
+              <div id="dest-suggestions" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] max-h-52 overflow-y-auto divide-y divide-slate-100 text-xs"></div>
+
+            </div>
+
+
+
+            <div class="pt-1">
+
+              <span class="text-[11px] font-medium text-slate-500 block mb-1">Thử nhanh tuyến mẫu:</span>
+
+              <div class="flex flex-wrap gap-1.5">
+
+                <button onclick="setPresetRoute(105.780, 21.037, 105.812, 21.011, 'Xuân Thủy ➔ Láng Hạ')" class="px-2 py-1 bg-white hover:bg-slate-200 border border-slate-300 rounded text-[11px] font-medium transition">
+
+                  Xuân Thủy ➔ Láng Hạ
+
+                </button>
+
+                <button onclick="setPresetRoute(105.777, 21.028, 105.826, 21.008, 'Phạm Hùng ➔ Chùa Bộc')" class="px-2 py-1 bg-white hover:bg-slate-200 border border-slate-300 rounded text-[11px] font-medium transition">
+
+                  Phạm Hùng ➔ Chùa Bộc
+
+                </button>
+
+                <button onclick="setPresetRoute(105.795, 21.046, 105.801, 21.010, 'HQV ➔ Trần Duy Hưng')" class="px-2 py-1 bg-white hover:bg-slate-200 border border-slate-300 rounded text-[11px] font-medium transition">
+
+                  HQV ➔ Trần Duy Hưng
+
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+
+
+          <!-- Submit Button -->
+
+          <button onclick="calculateRoute()" id="btn-submit-route" class="w-full py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 transition disabled:opacity-50">
+
+            <i data-lucide="compass" class="w-5 h-5"></i>
+
+            <span>Tìm Lộ Trình Né Ngập</span>
+
+          </button>
+
+
+
+          <!-- Route Results Card -->
+
+          <div id="route-results" class="hidden space-y-3 pt-2">
+
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600">Kết quả lộ trình</h3>
+
+            
+
+            <!-- Safe Route Card -->
+
+            <div id="card-safe-route" class="p-3.5 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-500 rounded-xl shadow-sm">
+
+              <div class="flex items-center justify-between">
+
+                <span class="text-xs font-extrabold text-emerald-800 flex items-center gap-1.5">
+
+                  <i data-lucide="shield-check" class="w-4 h-4 text-emerald-600"></i> Lộ trình An Toàn (Đề xuất)
+
+                </span>
+
+                <span class="text-[10px] font-bold px-2 py-0.5 bg-emerald-600 text-white rounded-full">Khuyên dùng</span>
+
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-emerald-200/60 text-xs text-slate-700">
+
+                <div>
+
+                  <span class="text-slate-500 block text-[10px]">Khoảng cách</span>
+
+                  <span class="text-sm font-bold text-slate-900" id="safe-dist">--</span>
+
+                </div>
+
+                <div>
+
+                  <span class="text-slate-500 block text-[10px]">Thời gian ước tính</span>
+
+                  <span class="text-sm font-bold text-slate-900" id="safe-time">--</span>
+
+                </div>
+
+              </div>
+
+              <div id="safe-warnings" class="mt-2 text-[11px] text-emerald-700 font-medium"></div>
+
+            </div>
+
+
+
+            <!-- Fastest Route Card -->
+
+            <div id="card-fastest-route" class="p-3.5 bg-slate-50 border border-slate-300 rounded-xl">
+
+              <div class="flex items-center justify-between">
+
+                <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+
+                  <i data-lucide="zap" class="w-4 h-4 text-amber-500"></i> Lộ trình Nhanh Nhất (Gốc)
+
+                </span>
+
+                <span id="fastest-badge" class="text-[10px] font-semibold px-2 py-0.5 bg-slate-200 text-slate-700 rounded-full">--</span>
+
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-200 text-xs text-slate-700">
+
+                <div>
+
+                  <span class="text-slate-500 block text-[10px]">Khoảng cách</span>
+
+                  <span class="text-sm font-bold text-slate-900" id="fastest-dist">--</span>
+
+                </div>
+
+                <div>
+
+                  <span class="text-slate-500 block text-[10px]">Thời gian</span>
+
+                  <span class="text-sm font-bold text-slate-900" id="fastest-time">--</span>
+
+                </div>
+
+              </div>
+
+              <div id="fastest-warnings" class="mt-2 text-[11px] font-medium text-rose-600"></div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+
+        <!-- TAB 2: DANH SÁCH ĐIỂM NGẬP -->
+
+        <div id="tab-points" class="hidden space-y-3">
+
+          <div class="text-xs text-slate-600">
+
+            Dữ liệu quan trắc từ cảm biến mực nước IoT. Bạn có thể kéo thanh trượt để giả lập mưa lớn làm thay đổi lộ trình tức thì!
+
+          </div>
+
+          <div class="flex items-center justify-between bg-slate-100 p-2.5 rounded-xl text-xs border border-slate-200">
+
+            <span class="font-bold text-slate-700 flex items-center gap-1.5" id="points-viewport-summary">
+
+              <i data-lucide="eye" class="w-3.5 h-3.5 text-blue-600"></i> Trong khung nhìn: 0 / 75 điểm
+
+            </span>
+
+            <button onclick="zoomToAllPoints()" class="text-[11px] text-blue-600 font-semibold hover:underline flex items-center gap-1">
+
+              <i data-lucide="maximize" class="w-3 h-3"></i> Toàn cảnh
+
+            </button>
+
+          </div>
+
+          <div id="points-list" class="space-y-2"></div>
+
+        </div>
+
+
+
+        <!-- TAB 3: BÁO CÁO NGƯỜI DÂN -->
+
+        <div id="tab-report" class="hidden space-y-4">
+
+          <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-xs text-indigo-800">
+
+            Người dân có thể báo ngập nhanh tại vị trí đang đứng. Báo cáo được tự động xác nhận khi có ≥ 3 người cùng báo hoặc khớp số đo cảm biến lân cận!
+
+          </div>
+
+
+
+          <div>
+
+            <label class="block text-xs font-bold text-slate-700 mb-1">Vị trí điểm ngập</label>
+
+            <button onclick="setPickMode('report')" id="btn-pick-report" class="w-full py-2 px-3 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-700 hover:bg-slate-50 flex items-center justify-center gap-1.5">
+
+              <i data-lucide="map-pin" class="w-4 h-4 text-rose-500"></i>
+
+              <span id="report-coord-text">Nhấp vào đây rồi bấm lên bản đồ</span>
+
+            </button>
+
+          </div>
+
+
+
+          <div>
+
+            <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Mức độ ngập ước lượng</label>
+
+            <div class="space-y-2">
+
+              <label class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer border-slate-200 hover:bg-slate-50 has-[:checked]:border-amber-500 has-[:checked]:bg-amber-50/50">
+
+                <input type="radio" name="report_level" value="light" checked class="text-amber-500">
+
+                <div>
+
+                  <span class="text-xs font-bold text-slate-800">Ngập nhẹ (~10 cm)</span>
+
+                  <span class="text-[10px] text-slate-500 block">Nước ngập nửa bánh xe máy, đi chậm vẫn qua được</span>
+
+                </div>
+
+              </label>
+
+              <label class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer border-slate-200 hover:bg-slate-50 has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50/50">
+
+                <input type="radio" name="report_level" value="medium" class="text-orange-500">
+
+                <div>
+
+                  <span class="text-xs font-bold text-slate-800">Ngập trung bình (~25 cm)</span>
+
+                  <span class="text-[10px] text-slate-500 block">Nước ngập lút ống xả xe máy, xe máy nên quay đầu</span>
+
+                </div>
+
+              </label>
+
+              <label class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer border-slate-200 hover:bg-slate-50 has-[:checked]:border-rose-600 has-[:checked]:bg-rose-50/50">
+
+                <input type="radio" name="report_level" value="heavy" class="text-rose-600">
+
+                <div>
+
+                  <span class="text-xs font-bold text-slate-800">Ngập sâu nguy hiểm (~40 cm)</span>
+
+                  <span class="text-[10px] text-slate-500 block">Ngập qua gầm ô tô con, tê liệt mọi phương tiện</span>
+
+                </div>
+
+              </label>
+
+            </div>
+
+          </div>
+
+
+
+          <button onclick="submitReport()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/30 flex items-center justify-center gap-2 transition">
+
+            <i data-lucide="send" class="w-4 h-4"></i>
+
+            <span>Gửi Báo Cáo Ngập</span>
+
+          </button>
+
+        </div>
+
+
+
+      </div>
+
+
+
+      <!-- Footer Legend -->
+
+      <div class="p-3 bg-slate-50 border-t border-slate-200 text-[11px] text-slate-600 flex items-center justify-between">
+
+        <span class="font-bold text-slate-700">Chú giải:</span>
+
+        <div class="flex items-center gap-3">
+
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> &lt;5cm An toàn</span>
+
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> 5-20cm Chú ý</span>
+
+          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-600"></span> &gt;20cm Nguy hiểm</span>
+
+        </div>
+
+      </div>
+
+    </aside>
+
+
+
+    <!-- Map Canvas Container (Hiển thị 100% không gian trên Mobile & Desktop) -->
+
+    <main class="w-full h-full flex-1 relative z-0">
+
+      <div id="map" class="w-full h-full"></div>
+
+
+
+      <!-- Map Floating Helper -->
+
+      <div id="pick-hint" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white px-4 py-2 rounded-full shadow-xl text-xs font-semibold backdrop-blur-sm z-[1000] flex items-center gap-2 border border-slate-700">
+
+        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+
+        <span id="pick-hint-text">Nhấp lên bản đồ để chọn vị trí...</span>
+
+        <button onclick="cancelPickMode()" class="ml-2 text-slate-400 hover:text-white">&times;</button>
+
+      </div>
+
+
+
+      <!-- Floating Viewport Alert (Hiện cảnh báo điểm ngập trong khung nhìn khi kéo bản đồ) -->
+
+      <div id="viewport-flood-alert" class="hidden absolute top-4 left-1/2 -translate-x-1/2 px-3.5 py-2 rounded-2xl shadow-xl text-xs font-semibold backdrop-blur-md z-[990] flex items-center gap-2.5 border transition-all duration-300 pointer-events-auto">
+
+        <div id="viewport-alert-icon" class="p-1 rounded-full flex-shrink-0">
+
+          <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+
+        </div>
+
+        <div class="flex-1 truncate" id="viewport-alert-text">
+
+          Đang quét điểm ngập khu vực...
+
+        </div>
+
+        <button id="viewport-alert-btn" onclick="onViewportAlertClick()" class="hidden px-2.5 py-1 text-white text-[10px] font-bold rounded-lg transition flex-shrink-0 shadow">
+
+          Xem
+
+        </button>
+
+      </div>
+
+
+
+      <!-- Mobile Floating Route Summary Card (sm:hidden) -->
+
+      <div id="mobile-route-floating-card" class="hidden sm:hidden fixed bottom-16 left-3 right-3 bg-white/95 backdrop-blur-md rounded-2xl p-3 shadow-2xl border border-slate-200 z-[500] transition">
+
+        <div class="flex items-center justify-between">
+
+          <div class="flex-1 pr-2">
+
+            <div class="flex items-center gap-1.5">
+
+              <span class="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping"></span>
+
+              <span class="text-xs font-bold text-slate-800" id="mobile-card-title">Lộ trình né ngập an toàn</span>
+
+            </div>
+
+            <p class="text-[11px] text-slate-500 mt-0.5 truncate" id="mobile-card-subtitle">Khoảng cách và thời gian</p>
+
+          </div>
+
+          <button type="button" onclick="toggleMobilePanel(true)" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow flex items-center gap-1 active:scale-95 transition">
+
+            <i data-lucide="list" class="w-3.5 h-3.5"></i>
+
+            <span>Chi tiết</span>
+
+          </button>
+
+        </div>
+
+      </div>
+
+
+
+      <!-- Mobile Floating Button to Open Panel (sm:hidden) -->
+
+      <button id="btn-mobile-open-panel" type="button" onclick="toggleMobilePanel(true)" 
+
+              class="hidden sm:hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 z-[500] border border-white/60 active:scale-95 transition">
+
+        <i data-lucide="navigation" class="w-4 h-4 text-cyan-200"></i>
+
+        <span>Bảng tìm đường</span>
+
+      </button>
+
+    </main>
+
+
+
+  </div>
+
+
+
+  <!-- Modal Dashboard Thống kê Đô thị (Thành viên 3) -->
+
+  <div id="dashboard-modal" class="hidden fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onclick="if(event.target === this) FloodDashboard.closeDashboard()">
+
+    <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 space-y-4 border border-slate-200 max-h-[90vh] overflow-y-auto">
+
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+
+        <div class="flex items-center gap-2">
+
+          <div class="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
+
+            <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+
+          </div>
+
+          <div>
+
+            <h2 class="text-base font-bold text-slate-900">Trung Tâm Giám Sát Ngập Lụt Đô Thị Hà Nội</h2>
+
+            <p class="text-xs text-slate-500">Thống kê quan trắc từ 75 trạm cảm biến IoT trên toàn Hà Nội và báo cáo cộng đồng</p>
+
+          </div>
+
+        </div>
+
+        <button onclick="FloodDashboard.closeDashboard()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+
+          <i data-lucide="x" class="w-6 h-6"></i>
+
+        </button>
+
+      </div>
+
+
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <!-- Biểu đồ cột -->
+
+        <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+
+          <h3 class="text-xs font-bold text-slate-700 mb-3 uppercase tracking-wider">Mực nước hiện tại tại các trạm</h3>
+
+          <div class="h-60">
+
+            <canvas id="chart-sensor-depths"></canvas>
+
+          </div>
+
+        </div>
+
+
+
+        <!-- Biểu đồ tròn -->
+
+        <div class="p-4 bg-slate-50 rounded-xl border border-slate-200">
+
+          <h3 class="text-xs font-bold text-slate-700 mb-3 uppercase tracking-wider">Tỷ lệ an toàn mạng lưới đường</h3>
+
+          <div class="h-60 flex items-center justify-center">
+
+            <canvas id="chart-status-ratio"></canvas>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+
+      <div class="flex justify-end pt-2">
+
+        <button onclick="FloodDashboard.closeDashboard()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-semibold rounded-lg transition">
+
+          Đóng
+
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+
+  <!-- Modal Hướng Dẫn Sử Dụng Nhanh (FE-05) -->
+
+  <div id="onboarding-modal" class="hidden fixed inset-0 z-[9999] bg-slate-900/65 backdrop-blur-sm flex items-center justify-center p-4" onclick="if(event.target === this) closeHelpGuide()">
+
+    <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-5 border border-slate-200">
+
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+
+        <div class="flex items-center gap-3">
+
+          <div class="p-2.5 bg-blue-100 text-blue-700 rounded-xl">
+
+            <i data-lucide="compass" class="w-6 h-6"></i>
+
+          </div>
+
+          <div>
+
+            <h2 class="text-base font-extrabold text-slate-900">Chào mừng đến với FloodNav 🌊</h2>
+
+            <p class="text-xs text-slate-500">Hệ thống Định tuyến Thông minh & Cảnh báo Ngập lụt Hà Nội</p>
+
+          </div>
+
+        </div>
+
+        <button onclick="closeHelpGuide()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+
+          <i data-lucide="x" class="w-5 h-5"></i>
+
+        </button>
+
+      </div>
+
+
+
+      <!-- 3 Steps Walkthrough -->
+
+      <div class="space-y-3">
+
+        <div class="flex items-start gap-3 p-3 bg-blue-50/70 rounded-xl border border-blue-100">
+
+          <div class="w-7 h-7 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0 mt-0.5">1</div>
+
+          <div class="text-xs">
+
+            <h4 class="font-bold text-slate-800">Tìm lộ trình né ngập thông minh (Dijkstra / A*)</h4>
+
+            <p class="text-slate-600 mt-0.5">Chọn loại xe (Xe máy &lt; 20cm / Ô tô &lt; 30cm) và bấm thử nhanh các tuyến mẫu như <em>Xuân Thủy ➔ Láng Hạ</em> để xem thuật toán tự động né các tuyến phố bị ngập.</p>
+
+          </div>
+
+        </div>
+
+
+
+        <div class="flex items-start gap-3 p-3 bg-indigo-50/70 rounded-xl border border-indigo-100">
+
+          <div class="w-7 h-7 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0 mt-0.5">2</div>
+
+          <div class="text-xs">
+
+            <h4 class="font-bold text-slate-800">Thử nghiệm Bộ Giả lập Mưa Bão (Kịch bản thời tiết)</h4>
+
+            <p class="text-slate-600 mt-0.5">Tại thanh công cụ phía trên, chọn kịch bản <strong>Mưa lớn (50mm)</strong> để giả lập nước dâng tại các trạm cảm biến IoT và xem hệ thống tính lại lộ trình tức thì.</p>
+
+          </div>
+
+        </div>
+
+
+
+        <div class="flex items-start gap-3 p-3 bg-emerald-50/70 rounded-xl border border-emerald-100">
+
+          <div class="w-7 h-7 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0 mt-0.5">3</div>
+
+          <div class="text-xs">
+
+            <h4 class="font-bold text-slate-800">Trợ lý giọng nói & Báo ngập cộng đồng</h4>
+
+            <p class="text-slate-600 mt-0.5">Hệ thống tự động phát âm thanh cảnh báo bằng giọng nói tiếng Việt khi chuẩn bị vào vùng ngập, cùng tính năng cho phép người dân gửi báo cáo ngập tại hiện trường.</p>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+
+      <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+
+        <span class="text-[11px] text-slate-400">Có thể mở lại hướng dẫn này bằng nút <strong>(?)</strong> trên Header</span>
+
+        <button onclick="closeHelpGuide()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/25 transition">
+
+          Bắt đầu Trải nghiệm 🚀
+
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+
+  <!-- ========================================================
+
+       Nhúng các file JS độc lập (Zero-Conflict)
+
+       ======================================================== -->
+
+  <!-- 1. Controller Bản đồ chính (Thành viên 1 & 2) -->
+
+  <script src="/static/js/map_core.js?v=5.2"></script>
+
+
+
+  <!-- 2. Module Cảnh báo Giọng nói Tiếng Việt (Thành viên 3) -->
+
+  <script src="/static/js/voice_warning.js?v=5.0"></script>
+
+
+
+  <!-- 2b. Module Mô phỏng xe di chuyển dọc tuyến (Thành viên 3) -->
+
+  <script src="/static/js/vehicle_sim.js?v=5.2"></script>
+
+
+
+  <!-- 3. Module Giả lập Kịch bản Mưa Bão (Thành viên 3) -->
+
+  <script src="/static/js/storm_simulator.js?v=5.0"></script>
+
+
+
+  <!-- 4. Module Dashboard Thống kê Đô thị (Thành viên 3) -->
+
+  <script src="/static/js/dashboard.js?v=5.0"></script>
+
+
+
+  <!-- Khởi động khi tải xong trang -->
+
+  <script>
+
+    window.addEventListener('DOMContentLoaded', () => {
+
+      if (window.lucide) lucide.createIcons();
+
+      initMap();
+
+    });
+
+  </script>
+
+</body>
+
+</html>
+
