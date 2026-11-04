@@ -445,7 +445,8 @@ function displayRouteResults(data) {
 
     const safeWarnings = document.getElementById('safe-warnings');
     if (safe.flood_warnings && safe.flood_warnings.length > 0) {
-      safeWarnings.innerHTML = `⚠️ Chú ý: Tuyến đi qua mép ngập nhẹ (${safe.flood_warnings.join(', ')})`;
+      const warnNames = safe.flood_warnings.map(w => typeof w === 'string' ? w : (w.street || w.source || 'Mép ngập')).join(', ');
+      safeWarnings.innerHTML = `⚠️ Chú ý: Tuyến đi qua mép ngập nhẹ (${warnNames})`;
     } else {
       safeWarnings.innerHTML = `✨ Tuyến đường hoàn toàn khô ráo, không bị ngập.`;
     }
@@ -460,15 +461,33 @@ function displayRouteResults(data) {
       }).addTo(map);
       map.fitBounds(routeLayers.safe.getBounds(), { padding: [40, 40] });
 
-      // Gọi module cảnh báo âm thanh
+      // Gọi module cảnh báo âm thanh an toàn (không bao giờ làm đơ UI nếu âm thanh lỗi)
       if (window.VoiceWarning) {
-        VoiceWarning.speakRoutePlan(safe, same_route);
+        try {
+          if (typeof VoiceWarning.speakRouteResult === 'function') {
+            VoiceWarning.speakRouteResult(data);
+          } else if (typeof VoiceWarning.speakRoutePlan === 'function') {
+            VoiceWarning.speakRoutePlan(safe, same_route);
+          }
+        } catch (voiceErr) {
+          console.warn("Lỗi phát âm thanh cảnh báo:", voiceErr);
+        }
       }
     }
   } else {
     document.getElementById('safe-dist').innerText = 'Không thể đi';
     document.getElementById('safe-time').innerText = 'Bị chặn';
     document.getElementById('safe-warnings').innerText = safe.reason || 'Nước ngập quá sâu, mọi ngả đường đều bị chặn!';
+
+    if (window.VoiceWarning) {
+      try {
+        if (typeof VoiceWarning.speakRouteResult === 'function') {
+          VoiceWarning.speakRouteResult(data);
+        }
+      } catch (voiceErr) {
+        console.warn("Lỗi phát âm thanh cảnh báo:", voiceErr);
+      }
+    }
   }
 
   // Lộ trình nhanh nhất (Nét đứt màu xám/đỏ)
@@ -486,7 +505,8 @@ function displayRouteResults(data) {
     } else {
       badge.innerText = 'Bị ngập sâu!';
       badge.className = 'text-[10px] font-semibold px-2 py-0.5 bg-rose-100 text-rose-800 rounded-full';
-      warnings.innerHTML = `⚠️ Bị ngập tại: ${fastest.flood_warnings.join(', ') || 'Đoạn trũng'}`;
+      const warnNames = (fastest.flood_warnings || []).map(w => typeof w === 'string' ? w : (w.street || w.source || 'Đoạn trũng')).join(', ');
+      warnings.innerHTML = `⚠️ Bị ngập tại: ${warnNames || 'Đoạn trũng'}`;
 
       const latlngs = fastest.geometry.coordinates.map(c => [c[1], c[0]]);
       routeLayers.fastest = L.polyline(latlngs, {
