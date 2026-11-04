@@ -241,3 +241,37 @@ body.dark-mode #dashboard-modal > div {
   color: #f8fafc !important;
   border-color: #374151 !important;
 }
+
+/* Viewport Flood Alert Animation (Real-time drag warning) */
+#viewport-flood-alert {
+  animation: slideDownFade 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+body.dark-mode #viewport-flood-alert.bg-rose-50\/95 {
+  background-color: rgba(69, 10, 10, 0.95) !important;
+  color: #fecdd3 !important;
+  border-color: #991b1b !important;
+}
+
+body.dark-mode #viewport-flood-alert.bg-amber-50\/95 {
+  background-color: rgba(69, 26, 3, 0.95) !important;
+  color: #fef3c7 !important;
+  border-color: #92400e !important;
+}
+
+body.dark-mode #viewport-flood-alert.bg-emerald-50\/95 {
+  background-color: rgba(6, 78, 59, 0.95) !important;
+  color: #d1fae5 !important;
+  border-color: #065f46 !important;
+}
