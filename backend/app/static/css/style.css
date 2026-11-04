@@ -130,6 +130,182 @@ body.dark-mode ::-webkit-scrollbar-thumb {
   background: #374151;
 }
 
+/* Dark mode cho Dropdown gợi ý địa chỉ (FE-02) */
+body.dark-mode #origin-suggestions,
+body.dark-mode #dest-suggestions {
+  background-color: #111827 !important;
+  border-color: #374151 !important;
+  color: #f8fafc !important;
+}
+body.dark-mode #origin-suggestions > div:hover,
+body.dark-mode #dest-suggestions > div:hover {
+  background-color: #1f2937 !important;
+}
+body.dark-mode #origin-suggestions p.text-slate-800,
+body.dark-mode #dest-suggestions p.text-slate-800 {
+  color: #f1f5f9 !important;
+}
+body.dark-mode #origin-suggestions p.text-slate-500,
+body.dark-mode #dest-suggestions p.text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+/* ========================================================
+   Tối ưu hóa Giao diện Di động (FE-02: Mobile Responsive)
+   ======================================================== */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@media (max-width: 639px) {
+  #sidebar-panel {
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.25);
+  }
+}
+
+body.dark-mode #sidebar-panel {
+  background-color: #111827 !important;
+  border-color: #1f2937 !important;
+}
+body.dark-mode #sidebar-panel .bg-slate-100 {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+body.dark-mode #mobile-route-floating-card {
+  background-color: rgba(17, 24, 39, 0.95) !important;
+  border-color: #374151 !important;
+  color: #f8fafc !important;
+}
+body.dark-mode #mobile-route-floating-card #mobile-card-title {
+  color: #f1f5f9 !important;
+}
+
+/* Tinh chỉnh màu Dark Mode chi tiết cho các thẻ UI (FE-03) */
+body.dark-mode .bg-blue-50 {
+  background-color: rgba(30, 58, 138, 0.25) !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+  color: #93c5fd !important;
+}
+body.dark-mode .bg-blue-50\/50 {
+  background-color: rgba(30, 58, 138, 0.25) !important;
+}
+body.dark-mode .text-blue-800 {
+  color: #93c5fd !important;
+}
+body.dark-mode .border-blue-100 {
+  border-color: rgba(59, 130, 246, 0.2) !important;
+}
+body.dark-mode label.border-slate-200 {
+  border-color: #334155 !important;
+}
+body.dark-mode label.border-slate-200:hover {
+  background-color: #1e293b !important;
+}
+body.dark-mode button.bg-white {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+body.dark-mode button.bg-white:hover {
+  background-color: #334155 !important;
+}
+body.dark-mode .leaflet-bar a,
+body.dark-mode .leaflet-control-layers {
+  background-color: #111827 !important;
+  color: #f1f5f9 !important;
+  border-color: #374151 !important;
+}
+body.dark-mode .leaflet-bar a {
+  color: #f1f5f9 !important;
+}
+body.dark-mode .leaflet-control-layers-expanded {
+  background-color: #111827 !important;
+  color: #f1f5f9 !important;
+}
+body.dark-mode .leaflet-control-attribution {
+  background-color: rgba(17, 24, 39, 0.8) !important;
+  color: #94a3b8 !important;
+}
+body.dark-mode .leaflet-control-attribution a {
+  color: #60a5fa !important;
+}
+body.dark-mode #onboarding-modal > div > div,
+body.dark-mode #dashboard-modal > div {
+  background-color: #111827 !important;
+  color: #f8fafc !important;
+  border-color: #374151 !important;
+}
+
+
+/* Viewport Flood Alert Animation (Real-time drag warning) */
+#viewport-flood-alert {
+  animation: slideDownFade 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+body.dark-mode #viewport-flood-alert.bg-rose-50\/95 {
+  background-color: rgba(69, 10, 10, 0.95) !important;
+  color: #fecdd3 !important;
+  border-color: #991b1b !important;
+}
+
+body.dark-mode #viewport-flood-alert.bg-amber-50\/95 {
+  background-color: rgba(69, 26, 3, 0.95) !important;
+  color: #fef3c7 !important;
+  border-color: #92400e !important;
+}
+
+body.dark-mode #viewport-flood-alert.bg-emerald-50\/95 {
+  background-color: rgba(6, 78, 59, 0.95) !important;
+  color: #d1fae5 !important;
+  border-color: #065f46 !important;
+}
+
+/* Tối ưu vị trí thanh cảnh báo ngập trong khung nhìn - không đè nút Zoom và Layer Switcher */
+#viewport-flood-alert {
+  top: 12px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  max-width: min(440px, calc(100% - 140px)) !important;
+  z-index: 800 !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 639px) {
+  #viewport-flood-alert {
+    top: 54px !important;
+    max-width: calc(100% - 24px) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+  }
+}
+
+.leaflet-top.leaflet-left {
+  top: 12px !important;
+  left: 12px !important;
+}
+
+.leaflet-top.leaflet-right {
+  top: 12px !important;
+  right: 12px !important;
+}
+
 
 /* ========================================================
    Floating Navbar & Header Card (FE-01: Trung)

@@ -71,6 +71,19 @@ def create_reading(body: ReadingCreate):
         return rec
 
 
+
+@router.post("/batch", status_code=201)
+def create_batch_readings(items: list[ReadingCreate]):
+    """Gửi hàng loạt số đo mực nước để mô phỏng kịch bản mưa bão nhanh."""
+    results = []
+    for item in items:
+        try:
+            results.append(create_reading(item))
+        except Exception:
+            continue
+    return {"count": len(results), "readings": results}
+
+
 @router.get("")
 def list_readings(
     point_id: Optional[int] = None,
