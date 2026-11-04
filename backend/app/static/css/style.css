@@ -129,3 +129,23 @@ body.dark-mode input[type="text"] {
 body.dark-mode ::-webkit-scrollbar-thumb {
   background: #374151;
 }
+
+/* Dark mode cho Dropdown gợi ý địa chỉ (FE-02) */
+body.dark-mode #origin-suggestions,
+body.dark-mode #dest-suggestions {
+  background-color: #111827 !important;
+  border-color: #374151 !important;
+  color: #f8fafc !important;
+}
+body.dark-mode #origin-suggestions > div:hover,
+body.dark-mode #dest-suggestions > div:hover {
+  background-color: #1f2937 !important;
+}
+body.dark-mode #origin-suggestions p.text-slate-800,
+body.dark-mode #dest-suggestions p.text-slate-800 {
+  color: #f1f5f9 !important;
+}
+body.dark-mode #origin-suggestions p.text-slate-500,
+body.dark-mode #dest-suggestions p.text-slate-500 {
+  color: #94a3b8 !important;
+}

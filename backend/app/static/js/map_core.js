@@ -311,10 +311,14 @@ function onMapClick(e) {
   if (currentPickMode === 'origin') {
     coords.origin = { lat, lng };
     document.getElementById('origin-text').value = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    const clr = document.getElementById('btn-clear-origin');
+    if (clr) clr.classList.remove('hidden');
     updatePickMarker('origin', lat, lng, '#10b981', 'Điểm xuất phát');
   } else if (currentPickMode === 'destination') {
     coords.destination = { lat, lng };
     document.getElementById('dest-text').value = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    const clr = document.getElementById('btn-clear-dest');
+    if (clr) clr.classList.remove('hidden');
     updatePickMarker('destination', lat, lng, '#ef4444', 'Điểm đến');
   } else if (currentPickMode === 'report') {
     coords.report = { lat, lng };
@@ -349,6 +353,10 @@ function setPresetRoute(oLng, oLat, dLng, dLat, name) {
   document.getElementById('origin-text').value = `${oLat.toFixed(4)}, ${oLng.toFixed(4)}`;
   document.getElementById('dest-text').value = `${dLat.toFixed(4)}, ${dLng.toFixed(4)}`;
 
+  const clrO = document.getElementById('btn-clear-origin');
+  if (clrO) clrO.classList.remove('hidden');
+  const clrD = document.getElementById('btn-clear-dest');
+  if (clrD) clrD.classList.remove('hidden');
   updatePickMarker('origin', oLat, oLng, '#10b981', 'Điểm xuất phát');
   updatePickMarker('destination', dLat, dLng, '#ef4444', 'Điểm đến');
 
@@ -569,3 +577,182 @@ function checkFirstTimeVisitor() {
     }
   } catch (e) {}
 }
+
+
+// ========================================================
+// 13. TÌM KIẾM ĐỊA CHỈ & GỢI Ý ĐỊA ĐIỂM (Address Geocoding - FE-02)
+// ========================================================
+let addressDebounceTimer = null;
+
+// Danh bạ địa điểm trọng yếu Hà Nội phục vụ tìm kiếm tức thì và offline
+const HANOI_LANDMARKS = [
+  { name: "Đại học Quốc Gia Hà Nội (Xuân Thủy)", lat: 21.0372, lng: 105.7818, sub: "144 Xuân Thủy, Cầu Giấy" },
+  { name: "Đại học Sư Phạm Hà Nội", lat: 21.0365, lng: 105.7830, sub: "136 Xuân Thủy, Dịch Vọng Hậu" },
+  { name: "Cầu Giấy (Ngã tư Cầu Giấy - Trần Đăng Ninh)", lat: 21.0335, lng: 105.7950, sub: "Quận Cầu Giấy, Hà Nội" },
+  { name: "Xuân Thủy - Cầu Giấy", lat: 21.0370, lng: 105.7820, sub: "Đường Xuân Thủy, Cầu Giấy" },
+  { name: "Nguyễn Khánh Toàn", lat: 21.0385, lng: 105.7955, sub: "Đường Nguyễn Khánh Toàn, Quan Hoa" },
+  { name: "Trần Duy Hưng (Trung Hòa)", lat: 21.0105, lng: 105.8010, sub: "Đường Trần Duy Hưng, Cầu Giấy" },
+  { name: "Láng Hạ (Đống Đa)", lat: 21.0115, lng: 105.8120, sub: "Đường Láng Hạ, Đống Đa" },
+  { name: "Chùa Bộc (Học viện Ngân Hàng)", lat: 21.0085, lng: 105.8260, sub: "Đường Chùa Bộc, Quang Trung" },
+  { name: "Phạm Hùng - Mễ Trì (Keangnam)", lat: 21.0280, lng: 105.7770, sub: "Phạm Hùng, Mễ Trì, Nam Từ Liêm" },
+  { name: "Hoàng Quốc Việt (Cầu Giấy)", lat: 21.0465, lng: 105.7925, sub: "Đường Hoàng Quốc Việt, Nghĩa Đô" },
+  { name: "Nguyễn Chí Thanh (Đại học Luật)", lat: 21.0255, lng: 105.8105, sub: "Nguyễn Chí Thanh, Láng Thượng" },
+  { name: "Bến xe Mỹ Đình", lat: 21.0288, lng: 105.7780, sub: "20 Phạm Hùng, Mỹ Đình 2" },
+  { name: "Hồ Gươm (Hồ Hoàn Kiếm)", lat: 21.0285, lng: 105.8542, sub: "Quận Hoàn Kiếm, Hà Nội" },
+  { name: "Hồ Tây (Đường Thanh Niên)", lat: 21.0450, lng: 105.8350, sub: "Quận Tây Hồ, Hà Nội" },
+  { name: "Đại học Bách Khoa Hà Nội", lat: 21.0050, lng: 105.8430, sub: "Số 1 Đại Cồ Việt, Hai Bà Trưng" },
+  { name: "Keangnam Landmark 72", lat: 21.0175, lng: 105.7840, sub: "Khu E6 Phạm Hùng, Cầu Giấy" },
+  { name: "Big C Thăng Long (Go!)", lat: 21.0070, lng: 105.7930, sub: "222 Trần Duy Hưng, Trung Hòa" },
+  { name: "Công viên Cầu Giấy", lat: 21.0250, lng: 105.7900, sub: "Phố Duy Tân, Dịch Vọng" },
+  { name: "Học viện Báo chí và Tuyên truyền", lat: 21.0380, lng: 105.7870, sub: "36 Xuân Thủy, Dịch Vọng Hậu" },
+  { name: "Sân vận động Mỹ Đình", lat: 21.0205, lng: 105.7640, sub: "Đường Lê Đức Thọ, Mỹ Đình 1" }
+];
+
+function handleAddressInput(type, query) {
+  const container = document.getElementById(`${type}-suggestions`);
+  const clearBtn = document.getElementById(`btn-clear-${type}`);
+  if (!container) return;
+
+  if (clearBtn) {
+    if (query && query.trim().length > 0) clearBtn.classList.remove('hidden');
+    else clearBtn.classList.add('hidden');
+  }
+
+  if (!query || query.trim().length < 2) {
+    container.innerHTML = '';
+    container.classList.add('hidden');
+    return;
+  }
+
+  clearTimeout(addressDebounceTimer);
+  addressDebounceTimer = setTimeout(() => {
+    executeAddressSearch(type, query.trim());
+  }, 280);
+}
+
+async function executeAddressSearch(type, query) {
+  const container = document.getElementById(`${type}-suggestions`);
+  if (!container) return;
+
+  container.innerHTML = `<div class="p-2.5 text-center text-slate-400 text-xs flex items-center justify-center gap-1.5"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>Đang tìm địa chỉ...</span></div>`;
+  container.classList.remove('hidden');
+  if (window.lucide) lucide.createIcons();
+
+  const qNorm = query.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+  // 1. Khớp từ khóa danh bạ địa điểm Hà Nội tức thì
+  const localMatches = HANOI_LANDMARKS.filter(item => {
+    const nameNorm = item.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const subNorm = item.sub.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    return nameNorm.includes(qNorm) || subNorm.includes(qNorm);
+  });
+
+  // 2. Tìm kiếm mở rộng qua OpenStreetMap Nominatim API
+  let apiMatches = [];
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Hà Nội')}&addressdetails=1&limit=4&countrycodes=vn`;
+    const res = await fetch(url, { headers: { 'Accept-Language': 'vi,en' } });
+    if (res.ok) {
+      const data = await res.json();
+      apiMatches = data.map(item => ({
+        name: item.display_name.split(',')[0],
+        sub: item.display_name.split(',').slice(1, 4).join(', ').trim(),
+        lat: parseFloat(item.lat),
+        lng: parseFloat(item.lon)
+      }));
+    }
+  } catch (e) {
+    // Offline / fallback
+  }
+
+  // Kết hợp và loại bỏ trùng lặp
+  const allResults = [...localMatches];
+  apiMatches.forEach(item => {
+    if (!allResults.some(r => Math.abs(r.lat - item.lat) < 0.003 && Math.abs(r.lng - item.lng) < 0.003)) {
+      allResults.push(item);
+    }
+  });
+
+  if (allResults.length === 0) {
+    container.innerHTML = `<div class="p-3 text-center text-slate-400 text-xs">Không tìm thấy địa chỉ phù hợp. Bạn có thể chọn trực tiếp trên bản đồ.</div>`;
+    return;
+  }
+
+  container.innerHTML = allResults.slice(0, 6).map(item => `
+    <div onclick="selectAddress('${type}', ${item.lat}, ${item.lng}, '${item.name.replace(/'/g, "\'")}')" 
+         class="p-2.5 hover:bg-blue-50 cursor-pointer transition flex items-start gap-2.5 text-left group">
+      <i data-lucide="map-pin" class="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5 group-hover:scale-110 transition"></i>
+      <div class="flex-1 overflow-hidden">
+        <p class="font-bold text-slate-800 text-xs truncate group-hover:text-blue-600">${item.name}</p>
+        <p class="text-[11px] text-slate-500 truncate">${item.sub}</p>
+      </div>
+    </div>
+  `).join('');
+
+  if (window.lucide) lucide.createIcons();
+}
+
+function selectAddress(type, lat, lng, displayName) {
+  coords[type] = { lat: Number(lat), lng: Number(lng) };
+  const inputEl = document.getElementById(`${type}-text`);
+  if (inputEl) inputEl.value = displayName;
+
+  const clearBtn = document.getElementById(`btn-clear-${type}`);
+  if (clearBtn) clearBtn.classList.remove('hidden');
+
+  const container = document.getElementById(`${type}-suggestions`);
+  if (container) container.classList.add('hidden');
+
+  const color = type === 'origin' ? '#10b981' : '#ef4444';
+  const label = type === 'origin' ? 'Điểm xuất phát' : 'Điểm đến';
+  updatePickMarker(type, lat, lng, color, label);
+
+  map.flyTo([lat, lng], 15, { duration: 0.8 });
+
+  // Tự động kích hoạt tính lộ trình nếu cả 2 điểm đã sẵn sàng
+  if (coords.origin && coords.destination) {
+    calculateRoute();
+  }
+}
+
+function clearLocation(type) {
+  coords[type] = null;
+  const inputEl = document.getElementById(`${type}-text`);
+  if (inputEl) inputEl.value = '';
+
+  const clearBtn = document.getElementById(`btn-clear-${type}`);
+  if (clearBtn) clearBtn.classList.add('hidden');
+
+  const container = document.getElementById(`${type}-suggestions`);
+  if (container) container.classList.add('hidden');
+
+  if (pickMarkers[type]) {
+    map.removeLayer(pickMarkers[type]);
+    pickMarkers[type] = null;
+  }
+}
+
+function handleAddressKeydown(event, type) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    const container = document.getElementById(`${type}-suggestions`);
+    if (container && !container.classList.contains('hidden')) {
+      const firstItem = container.querySelector('[onclick]');
+      if (firstItem) firstItem.click();
+    }
+  } else if (event.key === 'Escape') {
+    const container = document.getElementById(`${type}-suggestions`);
+    if (container) container.classList.add('hidden');
+  }
+}
+
+// Đóng dropdown khi click ra ngoài
+document.addEventListener('click', (e) => {
+  ['origin', 'destination'].forEach(type => {
+    const container = document.getElementById(`${type}-suggestions`);
+    const input = document.getElementById(`${type}-text`);
+    if (container && !container.contains(e.target) && e.target !== input) {
+      container.classList.add('hidden');
+    }
+  });
+});
