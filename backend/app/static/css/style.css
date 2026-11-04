@@ -1,6 +1,6 @@
 /* ========================================================
    FloodNav - Custom Styles & Animations
-   Phụ trách chính: Thành viên 1 (Junior Frontend)
+   Phụ trách chính: Thành viên 1 & 2 (Frontend Collaboration)
    ======================================================== */
 
 #map {
@@ -67,29 +67,27 @@
   z-index: 1000 !important;
 }
 
-/* Chế độ Dark Mode cho Map (đảo màu nhẹ qua CSS filter) */
-body.dark-mode .leaflet-tile-pane {
-  filter: brightness(0.65) invert(1) contrast(3) hue-rotate(200deg) saturate(0.35);
-}
+/* Chế độ Dark Mode cho Giao diện UI (FE-03) */
 body.dark-mode {
-  background-color: #0f172a;
+  background-color: #090d16;
   color: #f8fafc;
 }
 body.dark-mode aside {
-  background-color: #1e293b;
-  border-color: #334155;
+  background-color: #111827;
+  border-color: #1f2937;
   color: #f8fafc;
 }
 body.dark-mode .bg-white {
-  background-color: #1e293b !important;
+  background-color: #111827 !important;
   color: #f8fafc !important;
 }
 body.dark-mode .bg-slate-50 {
-  background-color: #0f172a !important;
+  background-color: #0b1120 !important;
   color: #e2e8f0 !important;
 }
-body.dark-mode .border-slate-200 {
-  border-color: #334155 !important;
+body.dark-mode .border-slate-200,
+body.dark-mode .border-slate-300 {
+  border-color: #1f2937 !important;
 }
 body.dark-mode .text-slate-800,
 body.dark-mode .text-slate-900 {
@@ -97,7 +95,12 @@ body.dark-mode .text-slate-900 {
 }
 body.dark-mode .text-slate-700,
 body.dark-mode .text-slate-600 {
-  color: #cbd5e1 !important;
+  color: #94a3b8 !important;
+}
+body.dark-mode input[type="text"] {
+  background-color: #1f2937 !important;
+  color: #f1f5f9 !important;
+  border-color: #374151 !important;
 }
 
 /* Thanh cuộn mảnh mượt */
@@ -113,5 +116,5 @@ body.dark-mode .text-slate-600 {
   border-radius: 9999px;
 }
 body.dark-mode ::-webkit-scrollbar-thumb {
-  background: #475569;
+  background: #374151;
 }
