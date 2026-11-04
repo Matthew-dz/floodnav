@@ -350,8 +350,16 @@ function setPresetRoute(oLng, oLat, dLng, dLat, name) {
   coords.origin = { lng: oLng, lat: oLat };
   coords.destination = { lng: dLng, lat: dLat };
 
-  document.getElementById('origin-text').value = `${oLat.toFixed(4)}, ${oLng.toFixed(4)}`;
-  document.getElementById('dest-text').value = `${dLat.toFixed(4)}, ${dLng.toFixed(4)}`;
+  if (name && name.includes('➔')) {
+    const parts = name.split('➔').map(s => s.trim());
+    const originEl = document.getElementById('origin-text');
+    const destEl = document.getElementById('dest-text');
+    if (originEl) originEl.value = parts[0] || `${oLat.toFixed(4)}, ${oLng.toFixed(4)}`;
+    if (destEl) destEl.value = parts[1] || `${dLat.toFixed(4)}, ${dLng.toFixed(4)}`;
+  } else {
+    document.getElementById('origin-text').value = `${oLat.toFixed(4)}, ${oLng.toFixed(4)}`;
+    document.getElementById('dest-text').value = `${dLat.toFixed(4)}, ${dLng.toFixed(4)}`;
+  }
 
   const clrO = document.getElementById('btn-clear-origin');
   if (clrO) clrO.classList.remove('hidden');
@@ -605,7 +613,15 @@ const HANOI_LANDMARKS = [
   { name: "Big C Thăng Long (Go!)", lat: 21.0070, lng: 105.7930, sub: "222 Trần Duy Hưng, Trung Hòa" },
   { name: "Công viên Cầu Giấy", lat: 21.0250, lng: 105.7900, sub: "Phố Duy Tân, Dịch Vọng" },
   { name: "Học viện Báo chí và Tuyên truyền", lat: 21.0380, lng: 105.7870, sub: "36 Xuân Thủy, Dịch Vọng Hậu" },
-  { name: "Sân vận động Mỹ Đình", lat: 21.0205, lng: 105.7640, sub: "Đường Lê Đức Thọ, Mỹ Đình 1" }
+  { name: "Sân vận động Mỹ Đình", lat: 21.0205, lng: 105.7640, sub: "Đường Lê Đức Thọ, Mỹ Đình 1" },
+  { name: "Phường Tương Mai (Hoàng Mai)", lat: 20.9884, lng: 105.8547, sub: "Quận Hoàng Mai, Hà Nội" },
+  { name: "Đường Hoàng Mai", lat: 20.9882, lng: 105.8550, sub: "Quận Hoàng Mai, Hà Nội" },
+  { name: "Đường Giải Phóng", lat: 20.9964, lng: 105.8414, sub: "Quận Hoàng Mai / Hai Bà Trưng, Hà Nội" },
+  { name: "Bến xe Giáp Bát", lat: 20.9806, lng: 105.8418, sub: "Đường Giải Phóng, Giáp Bát, Hoàng Mai" },
+  { name: "Đường Trương Định", lat: 20.9912, lng: 105.8475, sub: "Quận Hoàng Mai / Hai Bà Trưng, Hà Nội" },
+  { name: "Đường Kim Mã (Ba Đình)", lat: 21.0315, lng: 105.8200, sub: "Quận Ba Đình, Hà Nội" },
+  { name: "Đường Nguyễn Trãi (Thanh Xuân)", lat: 20.9960, lng: 105.8080, sub: "Quận Thanh Xuân, Hà Nội" },
+  { name: "Đường Minh Khai (Hai Bà Trưng)", lat: 20.9980, lng: 105.8600, sub: "Quận Hai Bà Trưng, Hà Nội" }
 ];
 
 function handleAddressInput(type, query) {
@@ -638,31 +654,48 @@ async function executeAddressSearch(type, query) {
   container.classList.remove('hidden');
   if (window.lucide) lucide.createIcons();
 
-  const qNorm = query.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  const qNorm = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
   // 1. Khớp từ khóa danh bạ địa điểm Hà Nội tức thì
   const localMatches = HANOI_LANDMARKS.filter(item => {
-    const nameNorm = item.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    const subNorm = item.sub.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const nameNorm = item.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const subNorm = item.sub.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     return nameNorm.includes(qNorm) || subNorm.includes(qNorm);
   });
 
-  // 2. Tìm kiếm mở rộng qua OpenStreetMap Nominatim API
+  // 2. Tìm kiếm mở rộng qua Photon Komoot API (OSM geocoder tốc độ cao, hỗ trợ CORS & tiếng Việt, không bị timeout như Nominatim)
   let apiMatches = [];
   try {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Hà Nội')}&addressdetails=1&limit=4&countrycodes=vn`;
-    const res = await fetch(url, { headers: { 'Accept-Language': 'vi,en' } });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=21.0285&lon=105.8030&limit=6&lang=default`;
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
     if (res.ok) {
       const data = await res.json();
-      apiMatches = data.map(item => ({
-        name: item.display_name.split(',')[0],
-        sub: item.display_name.split(',').slice(1, 4).join(', ').trim(),
-        lat: parseFloat(item.lat),
-        lng: parseFloat(item.lon)
-      }));
+      apiMatches = (data.features || []).map(f => {
+        const p = f.properties || {};
+        const title = p.name || p.street || query;
+        const parts = [];
+        if (p.housenumber && p.street && !title.includes(p.street)) {
+          parts.push(`${p.housenumber} ${p.street}`);
+        } else if (p.street && !title.includes(p.street)) {
+          parts.push(p.street);
+        }
+        if (p.district) parts.push(p.district);
+        if (p.city) parts.push(p.city);
+        const sub = parts.join(', ') || 'Hà Nội, Việt Nam';
+        return {
+          name: title,
+          sub: sub,
+          lat: f.geometry.coordinates[1],
+          lng: f.geometry.coordinates[0]
+        };
+      });
     }
   } catch (e) {
-    // Offline / fallback
+    console.warn("Lỗi tìm kiếm địa chỉ Photon API:", e);
   }
 
   // Kết hợp và loại bỏ trùng lặp
@@ -679,8 +712,8 @@ async function executeAddressSearch(type, query) {
   }
 
   container.innerHTML = allResults.slice(0, 6).map(item => `
-    <div onclick="selectAddress('${type}', ${item.lat}, ${item.lng}, '${item.name.replace(/'/g, "\'")}')" 
-         class="p-2.5 hover:bg-blue-50 cursor-pointer transition flex items-start gap-2.5 text-left group">
+    <div onclick="selectAddress('${type}', ${item.lat}, ${item.lng}, '${encodeURIComponent(item.name)}')" 
+         class="p-2.5 hover:bg-blue-50 cursor-pointer transition flex items-start gap-2.5 text-left group border-b border-slate-100 last:border-b-0">
       <i data-lucide="map-pin" class="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5 group-hover:scale-110 transition"></i>
       <div class="flex-1 overflow-hidden">
         <p class="font-bold text-slate-800 text-xs truncate group-hover:text-blue-600">${item.name}</p>
@@ -693,6 +726,9 @@ async function executeAddressSearch(type, query) {
 }
 
 function selectAddress(type, lat, lng, displayName) {
+  try {
+    displayName = decodeURIComponent(displayName);
+  } catch (e) {}
   coords[type] = { lat: Number(lat), lng: Number(lng) };
   const inputEl = document.getElementById(`${type}-text`);
   if (inputEl) inputEl.value = displayName;
