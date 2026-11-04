@@ -20,40 +20,31 @@ let coords = {
   report: null
 };
 
-// 1. Khởi tạo bản đồ OpenStreetMap & CartoDB (100% Free & Open Source ODbL)
+// 1. Khởi tạo bản đồ OpenStreetMap (100% Free & Open Source ODbL)
+//Có vẻ như CartoDB đã được sửa trước, nên không có gì cần sửa
 function initMap() {
   // Tâm bản đồ tại trung tâm khu vực nghiên cứu Hà Nội (Cầu Giấy - Đống Đa)
   map = L.map('map', {
     center: [21.0285, 105.8030],
     zoom: 14,
-    zoomControl: true
+    zoomControl: true,
+    // attributionControl: false
   });
 
-  // Lớp bản đồ chính: ESRI World Street Map (Akamai CDN tốc độ cao, 100% không dính watermark, không cần API key)
-  const esriLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-    attribution: 'Tiles &copy; Esri &mdash; OpenStreetMap contributors',
+  //Đây là phần ngoài, vì map sau khi mở ra không thể mở được Thống kê chi tiết
+  const mapContainer = map.getContainer();
+  mapContainer.style.isolation = 'isolate';
+  if (mapContainer.parentElement) {
+    mapContainer.parentElement.style.isolation = 'isolate';
+  }
+
+  //Chỉ dùng 1 layer map OSM chuẩn vì nó open source, và nhìn nó chi tiết đến cả các ngõ nhỏ
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19
   }).addTo(map);
-
-  // Lớp bản đồ OpenStreetMap France (CDN châu Âu tốc độ cao, không watermark)
-  const osmFrLayer = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap France &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 19,
-    subdomains: ['a', 'b', 'c']
-  });
-
-  // Lớp bản đồ tiêu chuẩn OSM
-  const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    maxZoom: 19,
-    subdomains: ['a', 'b', 'c']
-  });
-
-  L.control.layers({
-    'Bản đồ Đường phố (ESRI - Khuyên dùng)': esriLayer,
-    'OpenStreetMap (Bản đồ Pháp OSM-FR)': osmFrLayer,
-    'OpenStreetMap Chuẩn': osmLayer
-  }, null, { position: 'topright' }).addTo(map);
+  //Không nên 
+  map.attributionControl.setPrefix(false);
 
   floodCirclesLayer.addTo(map);
   floodMarkersLayer.addTo(map);
