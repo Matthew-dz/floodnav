@@ -22,8 +22,24 @@ const FloodDashboard = (function () {
     if (modal) modal.classList.add('hidden');
   }
 
-  function renderCharts() {
-    if (!window.floodPoints || !window.Chart) return;
+  // Lấy dữ liệu trực tiếp từ /api/flood-points (floodPoints trong map_core.js khai báo bằng `let`
+  // nên window.floodPoints luôn undefined -> trước đây Dashboard bị trống)
+  async function fetchPoints() {
+    try {
+      const res = await fetch('/api/flood-points');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      return data.features || [];
+    } catch (err) {
+      console.warn('Dashboard: không gọi được /api/flood-points, dùng dữ liệu đang có.', err);
+      return (typeof floodPoints !== 'undefined') ? floodPoints : [];
+    }
+  }
+
+  async function renderCharts() {
+    if (!window.Chart) return;
+    const floodPoints = await fetchPoints();
+    if (!floodPoints.length) return;
 
     const names = floodPoints.map(f => f.name || f.properties?.name || ('Trạm ' + f.id));
     const depths = floodPoints.map(f => Number(f.depth_cm !== undefined ? f.depth_cm : f.properties?.depth_cm) || 0);
@@ -49,7 +65,7 @@ const FloodDashboard = (function () {
             {
               label: 'Mực nước hiện tại (cm)',
               data: depths,
-              backgroundColor: depths.map(d => d >= 20 ? '#ef4444' : (d >= 5 ? '#f59e0b' : '#10b981')),
+              backgroundColor: floodPoints.map(f => f.properties.status === 'danger' ? '#ef4444' : (f.properties.status === 'warning' ? '#f59e0b' : '#10b981')),
               borderRadius: 6
             },
             {

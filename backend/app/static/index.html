@@ -81,7 +81,6 @@
           <button onclick="switchTab('report')" class="px-2.5 py-1 rounded-lg hover:bg-white/20 transition flex items-center gap-1"><i data-lucide="send" class="w-3.5 h-3.5"></i> Báo ngập</button>
         </div>
       </div>
-
       <!-- Quick Action Controls (Co giãn mượt mà trên Mobile) -->
 
       <div class="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
@@ -113,6 +112,28 @@
             <option value="extreme_flood" class="text-slate-900">🌊 Bão (100mm)</option>
 
           </select>
+
+        </div>
+
+
+
+        <!-- Thanh trượt lượng mưa thời gian thực (Thành viên 3) -->
+
+        <div class="hidden md:flex items-center gap-1.5 sm:gap-2 bg-white/15 border border-white/20 rounded-lg px-2 sm:px-2.5 py-1 sm:py-1.5 flex-shrink-0">
+
+          <span class="text-xs">🌧️</span>
+
+          <input id="storm-slider" type="range" min="0" max="100" step="5" value="0"
+
+                 class="w-20 sm:w-28 accent-cyan-300 cursor-pointer"
+
+                 oninput="StormSimulator.onSliderInput(this.value)"
+
+                 title="Kéo để tăng/giảm lượng mưa mô phỏng (0 - 100 mm/h)">
+
+          <span id="storm-slider-value" class="text-[11px] sm:text-xs font-mono w-12 sm:w-14 text-right">0 mm/h</span>
+
+          <span id="sim-current-scenario" class="hidden"></span>
 
         </div>
 
@@ -1017,6 +1038,12 @@
   <!-- 2. Module Cảnh báo Giọng nói Tiếng Việt (Thành viên 3) -->
 
   <script src="/static/js/voice_warning.js?v=5.0"></script>
+
+
+
+  <!-- 2b. Module Mô phỏng xe di chuyển dọc tuyến (Thành viên 3) -->
+
+  <script src="/static/js/vehicle_sim.js?v=5.2"></script>
 
 
 

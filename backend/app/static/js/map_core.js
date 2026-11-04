@@ -1318,6 +1318,18 @@ function displayRouteResults(data) {
 
 
 
+      // Mô phỏng xe chạy dọc lộ trình an toàn (vehicle_sim.js - Thành viên 3)
+
+      if (window.VehicleSim) {
+
+        const v = document.querySelector('input[name="vehicle"]:checked');
+
+        VehicleSim.start(latlngs, v ? v.value : 'motorbike');
+
+      }
+
+
+
       // Gọi module cảnh báo âm thanh an toàn (không bao giờ làm đơ UI nếu âm thanh lỗi)
 
       if (window.VoiceWarning) {
@@ -1349,6 +1361,8 @@ function displayRouteResults(data) {
     document.getElementById('safe-dist').innerText = 'Không thể đi';
 
     document.getElementById('safe-time').innerText = 'Bị chặn';
+
+    if (window.VehicleSim) VehicleSim.stop();
 
     document.getElementById('safe-warnings').innerText = safe.reason || 'Nước ngập quá sâu, mọi ngả đường đều bị chặn!';
 

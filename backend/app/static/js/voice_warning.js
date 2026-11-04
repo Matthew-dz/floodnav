@@ -15,7 +15,7 @@ const VoiceWarning = (function () {
     if (!synth) return;
     const voices = synth.getVoices();
     // Tìm giọng đọc tiếng Việt nếu có trên hệ điều hành / trình duyệt
-    vietnameseVoice = voices.find(v => v.lang.includes('vi') || v.lang.includes('VIE')) || null;
+    vietnameseVoice = voices.find(v => v.lang.toLowerCase().startsWith('vi')) || null;
   }
 
   if (window.speechSynthesis) {
@@ -25,8 +25,8 @@ const VoiceWarning = (function () {
     initVoices();
   }
 
-  function speak(text) {
-    if (!isEnabled || !synth) return;
+  function speak(text, force = false) {
+    if ((!isEnabled && !force) || !synth) return;
     try {
       synth.cancel(); // Dừng câu đọc trước nếu đang đọc dở
       const utter = new SpeechSynthesisUtterance(text);
@@ -47,7 +47,8 @@ const VoiceWarning = (function () {
       icon.setAttribute('data-lucide', isEnabled ? 'volume-2' : 'volume-x');
       if (window.lucide) lucide.createIcons();
     }
-    speak(isEnabled ? "Đã bật cảnh báo giọng nói tiếng Việt." : "Đã tắt âm thanh cảnh báo.");
+    // force = true để câu thông báo "Đã tắt" vẫn được đọc dù loa đang tắt
+    speak(isEnabled ? "Đã bật cảnh báo giọng nói tiếng Việt." : "Đã tắt âm thanh cảnh báo.", true);
   }
 
   function speakRouteResult(data) {
