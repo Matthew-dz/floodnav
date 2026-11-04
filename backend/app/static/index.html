@@ -19,18 +19,30 @@
 </head>
 <body class="bg-slate-100 text-slate-800 h-screen flex flex-col font-sans overflow-hidden transition-colors duration-300">
 
-  <!-- Header -->
-  <header class="bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white shadow-md z-20 flex-shrink-0">
-    <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between">
-      <div class="flex items-center space-x-3">
-        <div class="p-2 bg-white/20 rounded-xl backdrop-blur-sm shadow-inner">
-          <i data-lucide="waves" class="w-6 h-6 text-cyan-200"></i>
+  <!-- Floating Header (FE-01: Thanh điều hướng nổi bo tròn, hiển thị trạng thái PostGIS & Chuyển tab nhanh) -->
+  <header class="floating-header mx-2 sm:mx-4 mt-2 sm:mt-2.5 bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white rounded-2xl shadow-xl border border-white/20 z-30 flex-shrink-0 backdrop-blur-md">
+    <div class="px-3 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between gap-2">
+      <div class="flex items-center space-x-2.5 sm:space-x-3 flex-shrink-0">
+        <div class="p-1.5 sm:p-2 bg-white/20 rounded-xl backdrop-blur-sm shadow-inner flex-shrink-0">
+          <i data-lucide="waves" class="w-5 h-5 sm:w-6 sm:h-6 text-cyan-200"></i>
         </div>
         <div>
-          <h1 class="text-lg font-extrabold tracking-tight flex items-center gap-2">
-            FloodNav <span class="text-[11px] font-bold px-2 py-0.5 bg-cyan-400 text-slate-900 rounded-full shadow-sm">Hà Nội</span>
+          <h1 class="text-base sm:text-lg font-extrabold tracking-tight flex items-center gap-1.5 sm:gap-2">
+            FloodNav <span class="text-[10px] sm:text-[11px] font-bold px-2 py-0.5 bg-cyan-400 text-slate-900 rounded-full shadow-sm">Hà Nội</span>
           </h1>
           <p class="text-[11px] text-blue-100 hidden sm:block">Hệ thống Định tuyến Thông minh & Cảnh báo Ngập lụt Thời gian thực</p>
+        </div>
+      </div>
+
+      <!-- Trạng thái kết nối PostGIS & Chuyển tab nhanh (FE-01) -->
+      <div class="hidden xl:flex items-center gap-3">
+        <div id="postgis-status-badge" class="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/20 border border-emerald-400/30 text-emerald-100 rounded-full text-[11px] font-semibold">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>PostGIS Live
+        </div>
+        <div class="flex items-center bg-black/20 p-0.5 rounded-xl text-xs font-semibold">
+          <button onclick="switchTab('route')" class="px-2.5 py-1 rounded-lg hover:bg-white/20 transition flex items-center gap-1"><i data-lucide="navigation" class="w-3.5 h-3.5"></i> Tìm đường</button>
+          <button onclick="switchTab('points')" class="px-2.5 py-1 rounded-lg hover:bg-white/20 transition flex items-center gap-1"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Điểm ngập</button>
+          <button onclick="switchTab('report')" class="px-2.5 py-1 rounded-lg hover:bg-white/20 transition flex items-center gap-1"><i data-lucide="send" class="w-3.5 h-3.5"></i> Báo ngập</button>
         </div>
       </div>
 
@@ -77,7 +89,7 @@
   </header>
 
   <!-- Main Work Area -->
-  <div class="flex-1 flex relative overflow-hidden">
+  <div class="flex-1 flex relative overflow-hidden mt-2">
 
     <!-- Left Sidebar Control Panel (Thành viên 1) -->
     <aside class="w-full sm:w-[420px] bg-white shadow-2xl z-10 flex flex-col h-full border-r border-slate-200 transition-all duration-300">

@@ -34,6 +34,19 @@ function initMap() {
     zoomControl: true
   });
 
+  // FE-01: Cách ly container bản đồ tránh lỗi xung đột z-index modal
+  const mapContainer = map.getContainer();
+  mapContainer.style.isolation = 'isolate';
+  if (mapContainer.parentElement) {
+    mapContainer.parentElement.style.isolation = 'isolate';
+  }
+
+  // Lớp bản đồ chính: OpenStreetMap tiêu chuẩn sạch nét, không watermark
+  const osmStandardLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19
+  });
+
   // Lớp bản đồ chính: ESRI World Street Map (Akamai CDN tốc độ cao, không dính watermark, không cần API key)
   esriBaseLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
     attribution: 'Tiles &copy; Esri &mdash; OpenStreetMap contributors',
@@ -87,6 +100,7 @@ function initMap() {
 
   // Tải danh sách điểm ngập ban đầu
   loadFloodPoints();
+  checkPostGISConnection();
 
   // Kiểm tra và hiển thị hướng dẫn người dùng mới (Onboarding Guide)
   checkFirstTimeVisitor();
@@ -568,4 +582,24 @@ function checkFirstTimeVisitor() {
       setTimeout(openHelpGuide, 500);
     }
   } catch (e) {}
+}
+
+
+// FE-01: Kiểm tra trạng thái PostGIS kết nối cho Floating Header
+async function checkPostGISConnection() {
+  const badge = document.getElementById('postgis-status-badge');
+  if (!badge) return;
+  try {
+    const res = await fetch('/api/health');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.database === 'connected') {
+        badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>PostGIS Live';
+        badge.className = 'hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/20 border border-emerald-400/30 text-emerald-100 rounded-full text-[11px] font-semibold';
+        return;
+      }
+    }
+  } catch (e) {}
+  badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400"></span>PostGIS Standby';
+  badge.className = 'hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 border border-amber-400/30 text-amber-100 rounded-full text-[11px] font-semibold';
 }

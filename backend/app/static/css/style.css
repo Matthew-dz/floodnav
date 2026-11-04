@@ -129,3 +129,18 @@ body.dark-mode input[type="text"] {
 body.dark-mode ::-webkit-scrollbar-thumb {
   background: #374151;
 }
+
+
+/* ========================================================
+   Floating Navbar & Header Card (FE-01: Trung)
+   ======================================================== */
+.floating-header {
+  box-shadow: 0 10px 25px -5px rgba(30, 58, 138, 0.35), 0 8px 10px -6px rgba(30, 58, 138, 0.2);
+  transition: all 0.3s ease;
+}
+
+body.dark-mode .floating-header {
+  background: linear-gradient(to right, #0f172a, #1e1b4b, #0e3b43) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
