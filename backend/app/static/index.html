@@ -15,7 +15,7 @@
   <!-- Lucide Icons (ISC License) -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Custom Styles (Phụ trách: Thành viên 1) -->
-  <link rel="stylesheet" href="/static/css/style.css?v=3.0" />
+  <link rel="stylesheet" href="/static/css/style.css?v=4.1" />
 </head>
 <body class="bg-slate-100 text-slate-800 h-screen flex flex-col font-sans overflow-hidden transition-colors duration-300">
 
@@ -72,6 +72,11 @@
         <!-- Dark Mode Toggle (Thành viên 1) -->
         <button onclick="toggleDarkMode()" title="Chuyển chế độ Sáng / Tối" class="p-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs transition">
           <i id="dark-mode-icon" data-lucide="moon" class="w-4 h-4"></i>
+        </button>
+
+        <!-- Help Tour Modal Trigger (FE-05) -->
+        <button onclick="openHelpGuide()" title="Hướng dẫn sử dụng nhanh" class="p-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-bold transition flex items-center gap-1 text-cyan-200">
+          <i data-lucide="help-circle" class="w-4 h-4"></i>
         </button>
 
         <!-- Refresh Data -->
@@ -321,7 +326,7 @@
   </div>
 
   <!-- Modal Dashboard Thống kê Đô thị (Thành viên 3) -->
-  <div id="dashboard-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="dashboard-modal" class="hidden fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onclick="if(event.target === this) FloodDashboard.closeDashboard()">
     <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 space-y-4 border border-slate-200 max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between pb-3 border-b border-slate-100">
         <div class="flex items-center gap-2">
@@ -364,11 +369,65 @@
     </div>
   </div>
 
+  <!-- Modal Hướng Dẫn Sử Dụng Nhanh (FE-05) -->
+  <div id="onboarding-modal" class="hidden fixed inset-0 z-[9999] bg-slate-900/65 backdrop-blur-sm flex items-center justify-center p-4" onclick="if(event.target === this) closeHelpGuide()">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-5 border border-slate-200">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center gap-3">
+          <div class="p-2.5 bg-blue-100 text-blue-700 rounded-xl">
+            <i data-lucide="compass" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h2 class="text-base font-extrabold text-slate-900">Chào mừng đến với FloodNav 🌊</h2>
+            <p class="text-xs text-slate-500">Hệ thống Định tuyến Thông minh & Cảnh báo Ngập lụt Hà Nội</p>
+          </div>
+        </div>
+        <button onclick="closeHelpGuide()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- 3 Steps Walkthrough -->
+      <div class="space-y-3">
+        <div class="flex items-start gap-3 p-3 bg-blue-50/70 rounded-xl border border-blue-100">
+          <div class="w-7 h-7 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0 mt-0.5">1</div>
+          <div class="text-xs">
+            <h4 class="font-bold text-slate-800">Tìm lộ trình né ngập thông minh (Dijkstra / A*)</h4>
+            <p class="text-slate-600 mt-0.5">Chọn loại xe (Xe máy &lt; 20cm / Ô tô &lt; 30cm) và bấm thử nhanh các tuyến mẫu như <em>Xuân Thủy ➔ Láng Hạ</em> để xem thuật toán tự động né các tuyến phố bị ngập.</p>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3 p-3 bg-indigo-50/70 rounded-xl border border-indigo-100">
+          <div class="w-7 h-7 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0 mt-0.5">2</div>
+          <div class="text-xs">
+            <h4 class="font-bold text-slate-800">Thử nghiệm Bộ Giả lập Mưa Bão (Kịch bản thời tiết)</h4>
+            <p class="text-slate-600 mt-0.5">Tại thanh công cụ phía trên, chọn kịch bản <strong>Mưa lớn (50mm)</strong> để giả lập nước dâng tại 8 trạm cảm biến IoT và xem hệ thống tính lại lộ trình tức thì.</p>
+          </div>
+        </div>
+
+        <div class="flex items-start gap-3 p-3 bg-emerald-50/70 rounded-xl border border-emerald-100">
+          <div class="w-7 h-7 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0 mt-0.5">3</div>
+          <div class="text-xs">
+            <h4 class="font-bold text-slate-800">Trợ lý giọng nói & Báo ngập cộng đồng</h4>
+            <p class="text-slate-600 mt-0.5">Hệ thống tự động phát âm thanh cảnh báo bằng giọng nói tiếng Việt khi chuẩn bị vào vùng ngập, cùng tính năng cho phép người dân gửi báo cáo ngập tại hiện trường.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+        <span class="text-[11px] text-slate-400">Có thể mở lại hướng dẫn này bằng nút <strong>(?)</strong> trên Header</span>
+        <button onclick="closeHelpGuide()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/25 transition">
+          Bắt đầu Trải nghiệm 🚀
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ========================================================
        Nhúng các file JS độc lập (Zero-Conflict)
        ======================================================== -->
-  <!-- 1. Controller Bản đồ chính (Thành viên 1) -->
-  <script src="/static/js/map_core.js?v=3.1"></script>
+  <!-- 1. Controller Bản đồ chính (Thành viên 1 & 2) -->
+  <script src="/static/js/map_core.js?v=4.2"></script>
 
   <!-- 2. Module Cảnh báo Giọng nói Tiếng Việt (Thành viên 3) -->
   <script src="/static/js/voice_warning.js?v=3.1"></script>
