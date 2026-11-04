@@ -29,8 +29,8 @@ let floodPoints = [];
 function initMap() {
   // Tâm bản đồ tại trung tâm khu vực nghiên cứu Hà Nội (Cầu Giấy - Đống Đa)
   map = L.map('map', {
-    center: [21.0285, 105.8030],
-    zoom: 14,
+    center: [21.020, 105.815],
+    zoom: 13,
     zoomControl: true
   });
 
@@ -124,16 +124,21 @@ async function loadFloodPoints() {
   }
 }
 
-function renderFloodPoints(geojson) {
-  floodPoints = geojson.features.map(f => ({
-    id: f.properties.id,
-    name: f.properties.name,
-    lng: f.geometry.coordinates[0],
-    lat: f.geometry.coordinates[1],
-    depth_cm: f.properties.depth_cm,
-    threshold_cm: f.properties.threshold_cm,
-    status: f.properties.status
-  }));
+function renderFloodPoints(data) {
+  if (data && data.features) {
+    floodPoints = data.features.map(f => ({
+      id: f.properties.id,
+      name: f.properties.name,
+      lng: f.geometry.coordinates[0],
+      lat: f.geometry.coordinates[1],
+      depth_cm: f.properties.depth_cm,
+      threshold_cm: f.properties.threshold_cm,
+      status: f.properties.status
+    }));
+  } else if (Array.isArray(data)) {
+    floodPoints = data;
+  }
+
 
   // Cập nhật số đếm trên Tab
   const countEl = document.getElementById('points-count');

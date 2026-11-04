@@ -9,16 +9,84 @@ from ..schemas import FloodPointCreate, FloodPointUpdate
 log = logging.getLogger("floodnav.flood_points")
 router = APIRouter(prefix="/api/flood-points", tags=["Điểm ngập"])
 
-# Dữ liệu dự phòng mẫu chuẩn xác 8 điểm ngập tại Hà Nội (bảo hiểm demo không bao giờ lỗi 500)
+# Dữ liệu dự phòng mẫu chuẩn xác 55 điểm ngập trọng điểm trên toàn địa bàn Hà Nội
 DEFAULT_FLOOD_POINTS = [
-    {"id": 1, "name": "Nguyễn Khánh Toàn", "sensor_id": "SENSOR-001", "threshold_cm": 20, "lng": 105.7955, "lat": 21.0385, "depth_cm": 0.0, "last_reading_at": None},
+    # --- Cầu Giấy ---
+    {"id": 1, "name": "Nguyễn Khánh Toàn (Cầu Giấy)", "sensor_id": "SENSOR-001", "threshold_cm": 20, "lng": 105.7955, "lat": 21.0385, "depth_cm": 0.0, "last_reading_at": None},
     {"id": 2, "name": "Xuân Thủy - Cầu Giấy", "sensor_id": "SENSOR-002", "threshold_cm": 20, "lng": 105.7820, "lat": 21.0370, "depth_cm": 3.0, "last_reading_at": None},
-    {"id": 3, "name": "Trần Duy Hưng", "sensor_id": "SENSOR-003", "threshold_cm": 20, "lng": 105.8010, "lat": 21.0105, "depth_cm": 12.0, "last_reading_at": None},
-    {"id": 4, "name": "Phạm Hùng - Mễ Trì", "sensor_id": "SENSOR-004", "threshold_cm": 20, "lng": 105.7770, "lat": 21.0280, "depth_cm": 25.0, "last_reading_at": None},
-    {"id": 5, "name": "Chùa Bộc", "sensor_id": "SENSOR-005", "threshold_cm": 20, "lng": 105.8260, "lat": 21.0085, "depth_cm": 8.0, "last_reading_at": None},
-    {"id": 6, "name": "Nguyễn Chí Thanh", "sensor_id": "SENSOR-006", "threshold_cm": 20, "lng": 105.8105, "lat": 21.0255, "depth_cm": 0.0, "last_reading_at": None},
-    {"id": 7, "name": "Láng Hạ", "sensor_id": "SENSOR-007", "threshold_cm": 20, "lng": 105.8120, "lat": 21.0115, "depth_cm": 18.0, "last_reading_at": None},
-    {"id": 8, "name": "Hoàng Quốc Việt", "sensor_id": "SENSOR-008", "threshold_cm": 20, "lng": 105.7925, "lat": 21.0465, "depth_cm": 5.0, "last_reading_at": None},
+    {"id": 3, "name": "Trần Duy Hưng (Cầu Giấy)", "sensor_id": "SENSOR-003", "threshold_cm": 20, "lng": 105.8010, "lat": 21.0105, "depth_cm": 12.0, "last_reading_at": None},
+    {"id": 4, "name": "Hoàng Quốc Việt (Cầu Giấy)", "sensor_id": "SENSOR-004", "threshold_cm": 20, "lng": 105.7925, "lat": 21.0465, "depth_cm": 5.0, "last_reading_at": None},
+    {"id": 5, "name": "Duy Tân (Khu CNTT Cầu Giấy)", "sensor_id": "SENSOR-005", "threshold_cm": 20, "lng": 105.7830, "lat": 21.0310, "depth_cm": 15.0, "last_reading_at": None},
+    {"id": 6, "name": "Hoa Bằng - Yên Hòa (Cầu Giấy)", "sensor_id": "SENSOR-006", "threshold_cm": 20, "lng": 105.7950, "lat": 21.0220, "depth_cm": 27.0, "last_reading_at": None},
+    {"id": 7, "name": "Trung Kính - Mạc Thái Tổ", "sensor_id": "SENSOR-007", "threshold_cm": 20, "lng": 105.7915, "lat": 21.0160, "depth_cm": 9.0, "last_reading_at": None},
+
+    # --- Đống Đa ---
+    {"id": 8, "name": "Chùa Bộc (Đống Đa)", "sensor_id": "SENSOR-008", "threshold_cm": 20, "lng": 105.8260, "lat": 21.0085, "depth_cm": 8.0, "last_reading_at": None},
+    {"id": 9, "name": "Nguyễn Chí Thanh (Đống Đa)", "sensor_id": "SENSOR-009", "threshold_cm": 20, "lng": 105.8105, "lat": 21.0255, "depth_cm": 0.0, "last_reading_at": None},
+    {"id": 10, "name": "Láng Hạ (Đống Đa)", "sensor_id": "SENSOR-010", "threshold_cm": 20, "lng": 105.8120, "lat": 21.0115, "depth_cm": 18.0, "last_reading_at": None},
+    {"id": 11, "name": "Thái Hà - Tây Sơn (Đống Đa)", "sensor_id": "SENSOR-011", "threshold_cm": 20, "lng": 105.8190, "lat": 21.0145, "depth_cm": 16.0, "last_reading_at": None},
+    {"id": 12, "name": "Tôn Đức Thắng (Văn Miếu)", "sensor_id": "SENSOR-012", "threshold_cm": 20, "lng": 105.8320, "lat": 21.0250, "depth_cm": 0.0, "last_reading_at": None},
+    {"id": 13, "name": "Trường Chinh (BV Không Quân)", "sensor_id": "SENSOR-013", "threshold_cm": 20, "lng": 105.8285, "lat": 21.0015, "depth_cm": 14.0, "last_reading_at": None},
+    {"id": 14, "name": "Khâm Thiên - Lê Duẩn", "sensor_id": "SENSOR-014", "threshold_cm": 20, "lng": 105.8385, "lat": 21.0185, "depth_cm": 4.0, "last_reading_at": None},
+    {"id": 15, "name": "Huỳnh Thúc Kháng - Nguyên Hồng", "sensor_id": "SENSOR-015", "threshold_cm": 20, "lng": 105.8100, "lat": 21.0175, "depth_cm": 9.0, "last_reading_at": None},
+
+    # --- Ba Đình ---
+    {"id": 16, "name": "Đội Cấn (Cống ngõ 209 Đội Cấn)", "sensor_id": "SENSOR-016", "threshold_cm": 20, "lng": 105.8235, "lat": 21.0362, "depth_cm": 12.0, "last_reading_at": None},
+    {"id": 17, "name": "Liễu Giai - Vạn Phúc", "sensor_id": "SENSOR-017", "threshold_cm": 20, "lng": 105.8152, "lat": 21.0340, "depth_cm": 6.0, "last_reading_at": None},
+    {"id": 18, "name": "Cao Bá Quát (Cty Môi Trường ĐT)", "sensor_id": "SENSOR-018", "threshold_cm": 20, "lng": 105.8390, "lat": 21.0315, "depth_cm": 22.0, "last_reading_at": None},
+    {"id": 19, "name": "Ngọc Khánh (BV Phụ Sản)", "sensor_id": "SENSOR-019", "threshold_cm": 20, "lng": 105.8115, "lat": 21.0298, "depth_cm": 8.0, "last_reading_at": None},
+    {"id": 20, "name": "Quán Thánh - Cửa Bắc", "sensor_id": "SENSOR-020", "threshold_cm": 20, "lng": 105.8420, "lat": 21.0415, "depth_cm": 0.0, "last_reading_at": None},
+    {"id": 21, "name": "Nguyễn Trường Tộ - Hàng Than", "sensor_id": "SENSOR-021", "threshold_cm": 20, "lng": 105.8435, "lat": 21.0440, "depth_cm": 10.0, "last_reading_at": None},
+
+    # --- Hoàn Kiếm ---
+    {"id": 22, "name": "Tràng Tiền - Đinh Tiên Hoàng (Bờ Hồ)", "sensor_id": "SENSOR-022", "threshold_cm": 20, "lng": 105.8540, "lat": 21.0255, "depth_cm": 0.0, "last_reading_at": None},
+    {"id": 23, "name": "Phùng Hưng - Bát Đàn (Phố Cổ)", "sensor_id": "SENSOR-023", "threshold_cm": 20, "lng": 105.8465, "lat": 21.0345, "depth_cm": 14.0, "last_reading_at": None},
+    {"id": 24, "name": "Lý Thường Kiệt - Phan Bội Châu", "sensor_id": "SENSOR-024", "threshold_cm": 20, "lng": 105.8435, "lat": 21.0260, "depth_cm": 7.0, "last_reading_at": None},
+    {"id": 25, "name": "Đường Thành - Ngõ Trạm", "sensor_id": "SENSOR-025", "threshold_cm": 20, "lng": 105.8460, "lat": 21.0322, "depth_cm": 16.0, "last_reading_at": None},
+    {"id": 26, "name": "Tạ Hiện - Lương Ngọc Quyến", "sensor_id": "SENSOR-026", "threshold_cm": 20, "lng": 105.8525, "lat": 21.0350, "depth_cm": 4.0, "last_reading_at": None},
+    {"id": 27, "name": "Thợ Nhuộm - Hai Bà Trưng", "sensor_id": "SENSOR-027", "threshold_cm": 20, "lng": 105.8450, "lat": 21.0245, "depth_cm": 0.0, "last_reading_at": None},
+
+    # --- Hai Bà Trưng ---
+    {"id": 28, "name": "Minh Khai (Chân cầu Vĩnh Tuy - Time City)", "sensor_id": "SENSOR-028", "threshold_cm": 20, "lng": 105.8670, "lat": 20.9995, "depth_cm": 28.0, "last_reading_at": None},
+    {"id": 29, "name": "Lạc Trung (Cổng TH Hà Nội)", "sensor_id": "SENSOR-029", "threshold_cm": 20, "lng": 105.8635, "lat": 21.0040, "depth_cm": 22.0, "last_reading_at": None},
+    {"id": 30, "name": "Nguyễn Khoái (Dốc Vĩnh Tuy)", "sensor_id": "SENSOR-030", "threshold_cm": 20, "lng": 105.8725, "lat": 21.0020, "depth_cm": 15.0, "last_reading_at": None},
+    {"id": 31, "name": "Thanh Nhàn (BV Thanh Nhàn)", "sensor_id": "SENSOR-031", "threshold_cm": 20, "lng": 105.8545, "lat": 21.0065, "depth_cm": 8.0, "last_reading_at": None},
+    {"id": 32, "name": "Đại La - Trần Đại Nghĩa", "sensor_id": "SENSOR-032", "threshold_cm": 20, "lng": 105.8440, "lat": 20.9985, "depth_cm": 12.0, "last_reading_at": None},
+    {"id": 33, "name": "Phố Huế - Nguyễn Công Trứ", "sensor_id": "SENSOR-033", "threshold_cm": 20, "lng": 105.8530, "lat": 21.0145, "depth_cm": 0.0, "last_reading_at": None},
+
+    # --- Thanh Xuân ---
+    {"id": 34, "name": "Nguyễn Trãi (Trước ĐHKHTN)", "sensor_id": "SENSOR-034", "threshold_cm": 20, "lng": 105.8080, "lat": 20.9965, "depth_cm": 26.0, "last_reading_at": None},
+    {"id": 35, "name": "Vương Thừa Vũ - Tô Vĩnh Diện", "sensor_id": "SENSOR-035", "threshold_cm": 20, "lng": 105.8205, "lat": 21.0005, "depth_cm": 15.0, "last_reading_at": None},
+    {"id": 36, "name": "Triều Khúc - Tân Triều", "sensor_id": "SENSOR-036", "threshold_cm": 20, "lng": 105.7975, "lat": 20.9840, "depth_cm": 22.0, "last_reading_at": None},
+    {"id": 37, "name": "Lê Văn Lương - Hoàng Đạo Thúy", "sensor_id": "SENSOR-037", "threshold_cm": 20, "lng": 105.8035, "lat": 21.0070, "depth_cm": 10.0, "last_reading_at": None},
+    {"id": 38, "name": "Quan Nhân - Nhân Chính", "sensor_id": "SENSOR-038", "threshold_cm": 20, "lng": 105.8095, "lat": 21.0045, "depth_cm": 18.0, "last_reading_at": None},
+
+    # --- Nam Từ Liêm ---
+    {"id": 39, "name": "Phạm Hùng - Mễ Trì", "sensor_id": "SENSOR-039", "threshold_cm": 20, "lng": 105.7770, "lat": 21.0280, "depth_cm": 25.0, "last_reading_at": None},
+    {"id": 40, "name": "Lê Đức Thọ (SVĐ Mỹ Đình)", "sensor_id": "SENSOR-040", "threshold_cm": 20, "lng": 105.7665, "lat": 21.0210, "depth_cm": 21.0, "last_reading_at": None},
+    {"id": 41, "name": "Mễ Trì (The Garden - Keangnam)", "sensor_id": "SENSOR-041", "threshold_cm": 20, "lng": 105.7760, "lat": 21.0135, "depth_cm": 16.0, "last_reading_at": None},
+    {"id": 42, "name": "Hầm chui Thăng Long (An Khánh)", "sensor_id": "SENSOR-042", "threshold_cm": 25, "lng": 105.7485, "lat": 21.0010, "depth_cm": 32.0, "last_reading_at": None},
+    {"id": 43, "name": "Tố Hữu - Lương Thế Vinh", "sensor_id": "SENSOR-043", "threshold_cm": 20, "lng": 105.7905, "lat": 20.9985, "depth_cm": 19.0, "last_reading_at": None},
+
+    # --- Hoàng Mai ---
+    {"id": 44, "name": "Giải Phóng (Trước BX Giáp Bát)", "sensor_id": "SENSOR-044", "threshold_cm": 20, "lng": 105.8425, "lat": 20.9785, "depth_cm": 28.0, "last_reading_at": None},
+    {"id": 45, "name": "Định Công (Cầu Định Công qua Sông Lừ)", "sensor_id": "SENSOR-045", "threshold_cm": 20, "lng": 105.8340, "lat": 20.9875, "depth_cm": 24.0, "last_reading_at": None},
+    {"id": 46, "name": "Tân Mai (Chợ Tân Mai)", "sensor_id": "SENSOR-046", "threshold_cm": 20, "lng": 105.8520, "lat": 20.9890, "depth_cm": 17.0, "last_reading_at": None},
+    {"id": 47, "name": "Thịnh Liệt - Trương Định", "sensor_id": "SENSOR-047", "threshold_cm": 20, "lng": 105.8490, "lat": 20.9820, "depth_cm": 12.0, "last_reading_at": None},
+    {"id": 48, "name": "Nguyễn Xiển (Kim Văn Kim Lũ)", "sensor_id": "SENSOR-048", "threshold_cm": 20, "lng": 105.8150, "lat": 20.9760, "depth_cm": 20.0, "last_reading_at": None},
+
+    # --- Tây Hồ ---
+    {"id": 49, "name": "Thụy Khuê (Dốc Tam Đa)", "sensor_id": "SENSOR-049", "threshold_cm": 20, "lng": 105.8210, "lat": 21.0440, "depth_cm": 18.0, "last_reading_at": None},
+    {"id": 50, "name": "Trích Sài (Ven Hồ Tây)", "sensor_id": "SENSOR-050", "threshold_cm": 20, "lng": 105.8270, "lat": 21.0475, "depth_cm": 7.0, "last_reading_at": None},
+    {"id": 51, "name": "Võ Chí Công (Chân cầu Nhật Tân)", "sensor_id": "SENSOR-051", "threshold_cm": 20, "lng": 105.8070, "lat": 21.0720, "depth_cm": 4.0, "last_reading_at": None},
+
+    # --- Long Biên ---
+    {"id": 52, "name": "Nguyễn Văn Cừ - Ngọc Lâm (Long Biên)", "sensor_id": "SENSOR-052", "threshold_cm": 20, "lng": 105.8710, "lat": 21.0450, "depth_cm": 10.0, "last_reading_at": None},
+    {"id": 53, "name": "Cổ Linh (Chân cầu Vĩnh Tuy - Long Biên)", "sensor_id": "SENSOR-053", "threshold_cm": 20, "lng": 105.8920, "lat": 21.0180, "depth_cm": 14.0, "last_reading_at": None},
+
+    # --- Hà Đông ---
+    {"id": 54, "name": "Quang Trung - Ga La Khê (Hà Đông)", "sensor_id": "SENSOR-054", "threshold_cm": 20, "lng": 105.7650, "lat": 20.9650, "depth_cm": 24.0, "last_reading_at": None},
+    {"id": 55, "name": "Yên Nghĩa (Bến xe Yên Nghĩa)", "sensor_id": "SENSOR-055", "threshold_cm": 20, "lng": 105.7480, "lat": 20.9520, "depth_cm": 12.0, "last_reading_at": None},
 ]
 
 SELECT_SQL = """

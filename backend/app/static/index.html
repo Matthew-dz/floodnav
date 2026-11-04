@@ -101,7 +101,7 @@
         </button>
         <button onclick="switchTab('points')" id="tab-btn-points" class="flex-1 py-3 px-2 border-b-2 border-transparent hover:text-slate-900 flex items-center justify-center gap-1.5 transition">
           <i data-lucide="alert-triangle" class="w-4 h-4"></i>
-          <span>Điểm ngập (<span id="points-count">8</span>)</span>
+          <span>Điểm ngập (<span id="points-count">55</span>)</span>
         </button>
         <button onclick="switchTab('report')" id="tab-btn-report" class="flex-1 py-3 px-2 border-b-2 border-transparent hover:text-slate-900 flex items-center justify-center gap-1.5 transition">
           <i data-lucide="send" class="w-4 h-4"></i>
@@ -385,7 +385,7 @@
           </div>
           <div>
             <h2 class="text-base font-bold text-slate-900">Trung Tâm Giám Sát Ngập Lụt Đô Thị Hà Nội</h2>
-            <p class="text-xs text-slate-500">Thống kê quan trắc từ 8 trạm cảm biến IoT và báo cáo cộng đồng</p>
+            <p class="text-xs text-slate-500">Thống kê quan trắc từ 55 trạm cảm biến IoT trên toàn Hà Nội và báo cáo cộng đồng</p>
           </div>
         </div>
         <button onclick="FloodDashboard.closeDashboard()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
@@ -451,7 +451,7 @@
           <div class="w-7 h-7 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs flex-shrink-0 mt-0.5">2</div>
           <div class="text-xs">
             <h4 class="font-bold text-slate-800">Thử nghiệm Bộ Giả lập Mưa Bão (Kịch bản thời tiết)</h4>
-            <p class="text-slate-600 mt-0.5">Tại thanh công cụ phía trên, chọn kịch bản <strong>Mưa lớn (50mm)</strong> để giả lập nước dâng tại 8 trạm cảm biến IoT và xem hệ thống tính lại lộ trình tức thì.</p>
+            <p class="text-slate-600 mt-0.5">Tại thanh công cụ phía trên, chọn kịch bản <strong>Mưa lớn (50mm)</strong> để giả lập nước dâng tại các trạm cảm biến IoT và xem hệ thống tính lại lộ trình tức thì.</p>
           </div>
         </div>
 
@@ -477,16 +477,16 @@
        Nhúng các file JS độc lập (Zero-Conflict)
        ======================================================== -->
   <!-- 1. Controller Bản đồ chính (Thành viên 1 & 2) -->
-  <script src="/static/js/map_core.js?v=4.8"></script>
+  <script src="/static/js/map_core.js?v=5.0"></script>
 
   <!-- 2. Module Cảnh báo Giọng nói Tiếng Việt (Thành viên 3) -->
-  <script src="/static/js/voice_warning.js?v=3.1"></script>
+  <script src="/static/js/voice_warning.js?v=5.0"></script>
 
   <!-- 3. Module Giả lập Kịch bản Mưa Bão (Thành viên 3) -->
-  <script src="/static/js/storm_simulator.js?v=3.0"></script>
+  <script src="/static/js/storm_simulator.js?v=5.0"></script>
 
   <!-- 4. Module Dashboard Thống kê Đô thị (Thành viên 3) -->
-  <script src="/static/js/dashboard.js?v=3.0"></script>
+  <script src="/static/js/dashboard.js?v=5.0"></script>
 
   <!-- Khởi động khi tải xong trang -->
   <script>
