@@ -69,10 +69,16 @@ const VoiceWarning = (function () {
     }
   }
 
+  // Tương thích ngược với các lệnh gọi speakRoutePlan(safe, same_route)
+  function speakRoutePlan(safe, same_route) {
+    speakRouteResult({ safe, same_route });
+  }
+
   return {
     speak,
     toggleVoice,
     speakRouteResult,
+    speakRoutePlan,
     isEnabled: () => isEnabled
   };
 })();

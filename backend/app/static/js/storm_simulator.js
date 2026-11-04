@@ -4,73 +4,78 @@
  * Phụ trách chính: Thành viên 3 (Independent Frontend)
  * Mục đích: Biểu diễn demo trực tiếp trước Ban Giám Khảo cuộc thi
  * - Dropdown kịch bản mẫu
- * - Thanh trượt lượng mưa (mm/h): kéo -> mực nước 8 cảm biến tăng/giảm đồng bộ
+ * - Thanh trượt lượng mưa (0 - 100 mm/h) mô phỏng toàn bộ 75 trạm cảm biến Hà Nội
  * ========================================================
  */
 
 const StormSimulator = (function () {
-  // Mực nước đỉnh (cm) của 8 cảm biến khi mưa 100 mm/h
-  const PEAK_DEPTHS = [35, 45, 40, 50, 42, 25, 48, 38];
-
-  // Kịch bản mưa mẫu ứng với mực nước (cm) tại 8 cảm biến Hà Nội
   const scenarios = {
     clear: {
       label: "Trời tạnh (Bình thường)",
       rainfall: "0 mm/h",
-      mm: 0,
-      depths: [0, 2, 0, 0, 3, 0, 0, 0]
+      mm: 0
     },
     light_rain: {
       label: "Mưa rào nhẹ (~20mm)",
       rainfall: "20 mm/h",
-      mm: 20,
-      depths: [5, 10, 8, 12, 12, 4, 10, 8]
+      mm: 20
     },
     heavy_storm: {
       label: "Mưa lớn diện rộng (~50mm)",
       rainfall: "50 mm/h",
-      mm: 50,
-      depths: [18, 25, 22, 28, 22, 12, 24, 18]
+      mm: 50
     },
     extreme_flood: {
       label: "Bão cực đoan lịch sử (>100mm)",
       rainfall: "105 mm/h",
-      mm: 100,
-      depths: [35, 45, 40, 50, 42, 25, 48, 38]
+      mm: 100
     }
   };
 
   let sliderTimer = null;
-  let requestSeq = 0; // chỉ áp dụng kết quả của lần kéo mới nhất
+  let requestSeq = 0;
 
   function setLabel(text) {
     const labelEl = document.getElementById('sim-current-scenario');
     if (labelEl) labelEl.innerText = text;
   }
 
-  // Gửi mực nước 8 điểm lên Backend -> nạp lại bản đồ -> tính lại lộ trình
-  async function pushDepths(depths) {
+  // Cập nhật mực nước toàn bộ 75 trạm theo lượng mưa (mm/h)
+  async function pushDepthsByRain(mm) {
     const seq = ++requestSeq;
-    try {
-      await Promise.all(depths.map((depth, idx) =>
-        fetch('/api/readings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ point_id: idx + 1, depth_cm: depth, source: 'sensor' })
-        })
-      ));
-      if (seq !== requestSeq) return; // đã có lần kéo mới hơn
+    const k = Math.max(0, Math.min(mm, 100)) / 100;
 
-      if (typeof loadFloodPoints === 'function') await loadFloodPoints();
+    if (window.floodPoints && window.floodPoints.length > 0) {
+      const batchPayload = [];
+      window.floodPoints.forEach(fp => {
+        let newDepth = 0;
+        if (mm > 0) {
+          // Tính toán mực nước theo tỷ lệ ngưỡng chịu ngập của từng điểm
+          newDepth = Math.max(0, Math.round(fp.threshold_cm * k * 1.45));
+        }
+        fp.depth_cm = newDepth;
+        fp.status = newDepth >= fp.threshold_cm ? 'danger' : (newDepth >= 5 ? 'warning' : 'safe');
+        batchPayload.push({ point_id: fp.id, depth_cm: newDepth, source: 'sensor' });
+      });
 
-      // Dynamic Re-routing: tính lại ngay nếu đã chọn điểm đi/đến
-      // (coords khai báo bằng `let` nên KHÔNG nằm trên window -> dùng typeof)
-      if (typeof coords !== 'undefined' && coords.origin && coords.destination &&
-          typeof calculateRoute === 'function') {
+      if (seq !== requestSeq) return;
+
+      // Cập nhật ngay trên bản đồ và sidebar
+      if (typeof renderPointsList === 'function') renderPointsList();
+      if (typeof renderFloodMarkers === 'function') renderFloodMarkers();
+      if (typeof updateViewportFloodAlert === 'function') updateViewportFloodAlert();
+
+      // Đồng bộ ngầm lên backend
+      fetch('/api/readings/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(batchPayload)
+      }).catch(err => console.debug('Gửi batch readings:', err));
+
+      // Tính lại lộ trình né ngập tức thì (Dynamic Re-routing)
+      if (typeof coords !== 'undefined' && coords.origin && coords.destination && typeof calculateRoute === 'function') {
         calculateRoute();
       }
-    } catch (err) {
-      console.error('Lỗi mô phỏng:', err);
     }
   }
 
@@ -80,41 +85,32 @@ const StormSimulator = (function () {
 
     setLabel(`${sc.label} - Lượng mưa: ${sc.rainfall}`);
 
-    // Đồng bộ thanh trượt với kịch bản
     const slider = document.getElementById('storm-slider');
     const val = document.getElementById('storm-slider-value');
     if (slider) slider.value = sc.mm;
     if (val) val.innerText = `${sc.mm} mm/h`;
 
-    await pushDepths(sc.depths);
+    await pushDepthsByRain(sc.mm);
 
     if (window.VoiceWarning) {
-      VoiceWarning.speak(`Kích hoạt mô phỏng: ${sc.label}. Hệ thống đang cập nhật mạng lưới giao thông.`);
+      VoiceWarning.speak(`Kích hoạt mô phỏng: ${sc.label}. Hệ thống đang cập nhật mạng lưới giao thông toàn thành phố.`);
     }
   }
 
-  // Mực nước mỗi cảm biến tỉ lệ thuận với lượng mưa (0 - 100 mm/h)
-  function depthsFromRain(mm) {
-    const k = Math.max(0, Math.min(mm, 100)) / 100;
-    return PEAK_DEPTHS.map(p => Math.round(p * k));
-  }
-
-  // Gọi từ oninput của thanh trượt
   function onSliderInput(mm) {
     mm = Number(mm);
     const val = document.getElementById('storm-slider-value');
     if (val) val.innerText = `${mm} mm/h`;
     setLabel(`Tuỳ chỉnh - Lượng mưa: ${mm} mm/h`);
 
-    // Debounce: ngừng kéo 350ms mới gửi API, tránh spam server
     clearTimeout(sliderTimer);
-    sliderTimer = setTimeout(() => pushDepths(depthsFromRain(mm)), 350);
+    sliderTimer = setTimeout(() => pushDepthsByRain(mm), 250);
   }
 
   return {
     applyScenario,
     onSliderInput,
-    depthsFromRain,
+    pushDepthsByRain,
     scenarios
   };
 })();

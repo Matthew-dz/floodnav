@@ -41,13 +41,13 @@ const FloodDashboard = (function () {
     const floodPoints = await fetchPoints();
     if (!floodPoints.length) return;
 
-    const names = floodPoints.map(f => f.properties.name);
-    const depths = floodPoints.map(f => f.properties.depth_cm);
-    const thresholds = floodPoints.map(f => f.properties.threshold_cm);
+    const names = floodPoints.map(f => f.name || f.properties?.name || ('Trạm ' + f.id));
+    const depths = floodPoints.map(f => Number(f.depth_cm !== undefined ? f.depth_cm : f.properties?.depth_cm) || 0);
+    const thresholds = floodPoints.map(f => Number(f.threshold_cm !== undefined ? f.threshold_cm : f.properties?.threshold_cm) || 20);
 
     let safeCount = 0, warnCount = 0, dangerCount = 0;
     floodPoints.forEach(f => {
-      const s = f.properties.status;
+      const s = f.status || f.properties?.status;
       if (s === 'safe') safeCount++;
       else if (s === 'warning') warnCount++;
       else if (s === 'danger') dangerCount++;
