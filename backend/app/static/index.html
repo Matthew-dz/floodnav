@@ -15,7 +15,7 @@
   <!-- Lucide Icons (ISC License) -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Custom Styles (Phụ trách: Thành viên 1) -->
-  <link rel="stylesheet" href="/static/css/style.css?v=4.0" />
+  <link rel="stylesheet" href="/static/css/style.css?v=4.1" />
 </head>
 <body class="bg-slate-100 text-slate-800 h-screen flex flex-col font-sans overflow-hidden transition-colors duration-300">
 
@@ -315,7 +315,7 @@
   </div>
 
   <!-- Modal Dashboard Thống kê Đô thị (Thành viên 3) -->
-  <div id="dashboard-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="dashboard-modal" class="hidden fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4" onclick="if(event.target === this) FloodDashboard.closeDashboard()">
     <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full p-6 space-y-4 border border-slate-200 max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between pb-3 border-b border-slate-100">
         <div class="flex items-center gap-2">
@@ -359,7 +359,7 @@
   </div>
 
   <!-- Modal Hướng Dẫn Sử Dụng Nhanh (FE-05) -->
-  <div id="onboarding-modal" class="hidden fixed inset-0 z-50 bg-slate-900/65 backdrop-blur-sm flex items-center justify-center p-4">
+  <div id="onboarding-modal" class="hidden fixed inset-0 z-[9999] bg-slate-900/65 backdrop-blur-sm flex items-center justify-center p-4" onclick="if(event.target === this) closeHelpGuide()">
     <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 space-y-5 border border-slate-200">
       <div class="flex items-center justify-between pb-3 border-b border-slate-100">
         <div class="flex items-center gap-3">
@@ -416,7 +416,7 @@
        Nhúng các file JS độc lập (Zero-Conflict)
        ======================================================== -->
   <!-- 1. Controller Bản đồ chính (Thành viên 1 & 2) -->
-  <script src="/static/js/map_core.js?v=4.0"></script>
+  <script src="/static/js/map_core.js?v=4.1"></script>
 
   <!-- 2. Module Cảnh báo Giọng nói Tiếng Việt (Thành viên 3) -->
   <script src="/static/js/voice_warning.js?v=3.0"></script>

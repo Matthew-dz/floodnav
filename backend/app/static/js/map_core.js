@@ -550,7 +550,7 @@ function toggleDarkMode() {
 // 12. Modal Hướng Dẫn Sử Dụng Nhanh (Onboarding Guide - FE-05)
 function openHelpGuide() {
   const modal = document.getElementById('onboarding-modal');
-  if (modal) modal.classList.remove('hidden');
+  if (modal) modal.classList.remove('hidden'); if (window.lucide) lucide.createIcons();
 }
 
 function closeHelpGuide() {
