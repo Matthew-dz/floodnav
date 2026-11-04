@@ -136,19 +136,32 @@ function renderFloodPoints(geojson) {
       radiusColor = '#ef4444';
     }
 
-    // Vẽ vùng bán kính ảnh hưởng lan tỏa (Flood Radius Circle)
+    // FE-04: Hiệu ứng vùng ngập nước sóng tỏa động (Animated Pulsing Flood Waves)
     if (depth >= 5) {
-      const radiusMeters = Math.min(100 + depth * 2, 250);
-      const circle = L.circle([lat, lng], {
+      const radiusMeters = Math.min(100 + depth * 2.5, 300);
+      
+      // Vòng ngoài mờ lan tỏa
+      const outerCircle = L.circle([lat, lng], {
         radius: radiusMeters,
         color: radiusColor,
         fillColor: radiusColor,
-        fillOpacity: 0.18,
-        weight: 1.5,
-        dashArray: '4, 4'
+        fillOpacity: depth >= 20 ? 0.22 : 0.14,
+        weight: depth >= 20 ? 2 : 1,
+        dashArray: depth >= 20 ? '5, 5' : '8, 8',
+        className: depth >= 20 ? 'animated-flood-ring' : ''
       });
-      circle.bindTooltip(`<b>${fp.name}</b><br/>Mực nước: ${depth} cm`, { direction: 'top' });
-      floodCirclesLayer.addLayer(circle);
+      outerCircle.bindTooltip(`<b>${fp.name}</b><br/>Mực nước: ${depth} cm | Ngưỡng ngập: ${threshold_cm} cm`, { direction: 'top' });
+      floodCirclesLayer.addLayer(outerCircle);
+
+      // Vòng tâm lõi đậm
+      const innerCircle = L.circle([lat, lng], {
+        radius: Math.max(30, radiusMeters * 0.4),
+        color: radiusColor,
+        fillColor: radiusColor,
+        fillOpacity: 0.35,
+        weight: 1
+      });
+      floodCirclesLayer.addLayer(innerCircle);
     }
 
     // Marker tròn hiển thị số cm ngập
