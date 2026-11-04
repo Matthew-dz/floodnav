@@ -340,7 +340,7 @@ function updateViewportFloodAlert() {
   const warningInView = inView.filter(fp => fp.status === 'warning');
 
   alertEl.classList.remove('hidden');
-  const baseClass = 'absolute top-4 left-1/2 -translate-x-1/2 max-w-[94%] sm:max-w-xl px-3.5 py-2 rounded-2xl shadow-xl text-xs font-semibold backdrop-blur-md z-[990] flex items-center gap-2.5 border transition-all duration-300 pointer-events-auto ';
+  const baseClass = 'absolute px-3.5 py-2 rounded-2xl shadow-xl text-xs font-semibold backdrop-blur-md flex items-center gap-2.5 border transition-all duration-300 pointer-events-auto ';
 
   if (dangerInView.length > 0) {
     dangerInView.sort((a, b) => (Number(b.depth_cm) || 0) - (Number(a.depth_cm) || 0));
@@ -932,7 +932,8 @@ async function resolveAddressFromInput(type) {
       }
     }
   } catch (e) {
-    console.warn("Lỗi resolveAddressFromInput:", e);
+    if (e.name === 'AbortError') return false;
+    console.debug("resolveAddressFromInput status:", e.message || e);
   }
 
   return false;
@@ -1020,7 +1021,10 @@ async function executeAddressSearch(type, query) {
       });
     }
   } catch (e) {
-    console.warn("Lỗi tìm kiếm địa chỉ Photon API:", e);
+    if (e.name === 'AbortError') {
+      return; // Bỏ qua AbortError khi người dùng gõ tiếp hoặc debounce hủy request
+    }
+    console.debug("Photon API search status:", e.message || e);
   }
 
   // Kết hợp và loại bỏ trùng lặp

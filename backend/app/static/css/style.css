@@ -275,3 +275,32 @@ body.dark-mode #viewport-flood-alert.bg-emerald-50\/95 {
   color: #d1fae5 !important;
   border-color: #065f46 !important;
 }
+
+/* Tối ưu vị trí thanh cảnh báo ngập trong khung nhìn - không đè nút Zoom và Layer Switcher */
+#viewport-flood-alert {
+  top: 12px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  max-width: min(440px, calc(100% - 140px)) !important;
+  z-index: 800 !important;
+  box-sizing: border-box !important;
+}
+
+@media (max-width: 639px) {
+  #viewport-flood-alert {
+    top: 54px !important;
+    max-width: calc(100% - 24px) !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+  }
+}
+
+.leaflet-top.leaflet-left {
+  top: 12px !important;
+  left: 12px !important;
+}
+
+.leaflet-top.leaflet-right {
+  top: 12px !important;
+  right: 12px !important;
+}
