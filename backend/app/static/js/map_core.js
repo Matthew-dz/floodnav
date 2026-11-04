@@ -40,12 +40,16 @@ function initMap() {
     maxZoom: 19
   });
 
-  // Lớp bản đồ Dark Mode chuyên nghiệp (CartoDB Dark Matter sạch, nét từng tuyến phố ban đêm)
-  darkBaseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-    maxZoom: 19,
-    subdomains: 'abcd'
+  // Lớp bản đồ Dark Mode chuyên nghiệp (ESRI World Dark Gray - 100% Free, không cần API key, không dính watermark, Akamai CDN)
+  const esriDarkBase = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ',
+    maxZoom: 19
   });
+  const esriDarkRef = L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '',
+    maxZoom: 19
+  });
+  darkBaseLayer = L.layerGroup([esriDarkBase, esriDarkRef]);
 
   // Lớp bản đồ OpenStreetMap France (CDN châu Âu tốc độ cao)
   const osmFrLayer = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
@@ -67,10 +71,27 @@ function initMap() {
 
   L.control.layers({
     'Bản đồ Đường phố (ESRI)': esriBaseLayer,
-    'Chế độ Ban đêm (Dark Matter)': darkBaseLayer,
+    'Chế độ Ban đêm (ESRI Dark)': darkBaseLayer,
     'OpenStreetMap (Bản đồ Pháp OSM-FR)': osmFrLayer,
     'OpenStreetMap Chuẩn': osmLayer
   }, null, { position: 'topright' }).addTo(map);
+
+  // Đồng bộ hóa khi người dùng chuyển lớp bản đồ từ điều khiển Leaflet
+  map.on('baselayerchange', (e) => {
+    currentBaseLayer = e.layer;
+    const isDark = (e.layer === darkBaseLayer);
+    if (isDark && !document.body.classList.contains('dark-mode')) {
+      document.body.classList.add('dark-mode');
+      const btn = document.getElementById('dark-mode-icon');
+      if (btn) btn.setAttribute('data-lucide', 'sun');
+      if (window.lucide) lucide.createIcons();
+    } else if (!isDark && document.body.classList.contains('dark-mode')) {
+      document.body.classList.remove('dark-mode');
+      const btn = document.getElementById('dark-mode-icon');
+      if (btn) btn.setAttribute('data-lucide', 'moon');
+      if (window.lucide) lucide.createIcons();
+    }
+  });
 
   floodCirclesLayer.addTo(map);
   floodMarkersLayer.addTo(map);

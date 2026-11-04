@@ -185,3 +185,59 @@ body.dark-mode #mobile-route-floating-card {
 body.dark-mode #mobile-route-floating-card #mobile-card-title {
   color: #f1f5f9 !important;
 }
+
+/* Tinh chỉnh màu Dark Mode chi tiết cho các thẻ UI (FE-03) */
+body.dark-mode .bg-blue-50 {
+  background-color: rgba(30, 58, 138, 0.25) !important;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+  color: #93c5fd !important;
+}
+body.dark-mode .bg-blue-50\/50 {
+  background-color: rgba(30, 58, 138, 0.25) !important;
+}
+body.dark-mode .text-blue-800 {
+  color: #93c5fd !important;
+}
+body.dark-mode .border-blue-100 {
+  border-color: rgba(59, 130, 246, 0.2) !important;
+}
+body.dark-mode label.border-slate-200 {
+  border-color: #334155 !important;
+}
+body.dark-mode label.border-slate-200:hover {
+  background-color: #1e293b !important;
+}
+body.dark-mode button.bg-white {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+body.dark-mode button.bg-white:hover {
+  background-color: #334155 !important;
+}
+body.dark-mode .leaflet-bar a,
+body.dark-mode .leaflet-control-layers {
+  background-color: #111827 !important;
+  color: #f1f5f9 !important;
+  border-color: #374151 !important;
+}
+body.dark-mode .leaflet-bar a {
+  color: #f1f5f9 !important;
+}
+body.dark-mode .leaflet-control-layers-expanded {
+  background-color: #111827 !important;
+  color: #f1f5f9 !important;
+}
+body.dark-mode .leaflet-control-attribution {
+  background-color: rgba(17, 24, 39, 0.8) !important;
+  color: #94a3b8 !important;
+}
+body.dark-mode .leaflet-control-attribution a {
+  color: #60a5fa !important;
+}
+body.dark-mode #onboarding-modal > div > div,
+body.dark-mode #dashboard-modal > div {
+  background-color: #111827 !important;
+  color: #f8fafc !important;
+  border-color: #374151 !important;
+}
