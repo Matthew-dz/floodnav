@@ -373,13 +373,22 @@ function setPresetRoute(oLng, oLat, dLng, dLat, name) {
 
 // 7. Gọi API Tìm đường Né ngập
 async function calculateRoute() {
+  const btn = document.getElementById('btn-submit-route');
+
+  // Tự động phân giải địa chỉ nếu người dùng đã gõ chữ vào ô nhưng chưa chọn từ gợi ý
+  if (!coords.origin) {
+    await resolveAddressFromInput('origin');
+  }
+  if (!coords.destination) {
+    await resolveAddressFromInput('destination');
+  }
+
   if (!coords.origin || !coords.destination) {
-    alert('Vui lòng chọn cả Điểm xuất phát và Điểm đến!');
+    alert('Vui lòng chọn hoặc nhập cả Điểm xuất phát và Điểm đến!');
     return;
   }
 
   const vehicle = document.querySelector('input[name="vehicle"]:checked').value;
-  const btn = document.getElementById('btn-submit-route');
   btn.disabled = true;
   btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Đang tính toán lộ trình A*...</span>`;
   if (window.lucide) lucide.createIcons();
@@ -614,8 +623,13 @@ const HANOI_LANDMARKS = [
   { name: "Công viên Cầu Giấy", lat: 21.0250, lng: 105.7900, sub: "Phố Duy Tân, Dịch Vọng" },
   { name: "Học viện Báo chí và Tuyên truyền", lat: 21.0380, lng: 105.7870, sub: "36 Xuân Thủy, Dịch Vọng Hậu" },
   { name: "Sân vận động Mỹ Đình", lat: 21.0205, lng: 105.7640, sub: "Đường Lê Đức Thọ, Mỹ Đình 1" },
+  { name: "Học viện Ngoại Giao", lat: 21.0226, lng: 105.8063, sub: "69 Chùa Láng, Đống Đa" },
+  { name: "Đại học Ngoại Thương", lat: 21.0235, lng: 105.8068, sub: "91 Chùa Láng, Đống Đa" },
+  { name: "Đại học Giao Thông Vận Tải", lat: 21.0285, lng: 105.8035, sub: "Số 3 Cầu Giấy, Láng Thượng" },
+  { name: "Bệnh viện Bạch Mai", lat: 21.0028, lng: 105.8398, sub: "78 Giải Phóng, Phương Mai, Đống Đa" },
   { name: "Phường Tương Mai (Hoàng Mai)", lat: 20.9884, lng: 105.8547, sub: "Quận Hoàng Mai, Hà Nội" },
   { name: "Đường Hoàng Mai", lat: 20.9882, lng: 105.8550, sub: "Quận Hoàng Mai, Hà Nội" },
+  { name: "Đường Nguyễn An Ninh (Tương Mai)", lat: 20.9895, lng: 105.8480, sub: "Phố Nguyễn An Ninh, Tương Mai, Hoàng Mai" },
   { name: "Đường Giải Phóng", lat: 20.9964, lng: 105.8414, sub: "Quận Hoàng Mai / Hai Bà Trưng, Hà Nội" },
   { name: "Bến xe Giáp Bát", lat: 20.9806, lng: 105.8418, sub: "Đường Giải Phóng, Giáp Bát, Hoàng Mai" },
   { name: "Đường Trương Định", lat: 20.9912, lng: 105.8475, sub: "Quận Hoàng Mai / Hai Bà Trưng, Hà Nội" },
@@ -624,9 +638,76 @@ const HANOI_LANDMARKS = [
   { name: "Đường Minh Khai (Hai Bà Trưng)", lat: 20.9980, lng: 105.8600, sub: "Quận Hai Bà Trưng, Hà Nội" }
 ];
 
+// Helper đồng bộ ID phần tử cho cả 'destination' và 'dest'
+function getAddressElements(type) {
+  const isDest = (type === 'destination' || type === 'dest');
+  const prefix = isDest ? 'dest' : 'origin';
+  return {
+    targetType: isDest ? 'destination' : 'origin',
+    input: document.getElementById(`${prefix}-text`) || document.getElementById(`${type}-text`),
+    container: document.getElementById(`${prefix}-suggestions`) || document.getElementById(`${type}-suggestions`),
+    clearBtn: document.getElementById(`btn-clear-${prefix}`) || document.getElementById(`btn-clear-${type}`)
+  };
+}
+
+// Tự động phân giải địa chỉ từ chuỗi người dùng đã nhập
+async function resolveAddressFromInput(type) {
+  const { targetType, input } = getAddressElements(type);
+  if (!input) return false;
+  const query = input.value.trim();
+  if (!query) return false;
+
+  // 1. Kiểm tra nếu là dạng tọa độ số "lat, lng"
+  const parts = query.split(',').map(s => parseFloat(s.trim()));
+  if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+    coords[targetType] = { lat: parts[0], lng: parts[1] };
+    const color = targetType === 'origin' ? '#10b981' : '#ef4444';
+    const label = targetType === 'origin' ? 'Điểm xuất phát' : 'Điểm đến';
+    updatePickMarker(targetType, parts[0], parts[1], color, label);
+    return true;
+  }
+
+  // 2. Tra cứu trong danh bạ trọng yếu
+  const qNorm = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const localMatch = HANOI_LANDMARKS.find(item => {
+    const nameNorm = item.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const subNorm = item.sub.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return nameNorm.includes(qNorm) || subNorm.includes(qNorm);
+  });
+  if (localMatch) {
+    coords[targetType] = { lat: localMatch.lat, lng: localMatch.lng };
+    const color = targetType === 'origin' ? '#10b981' : '#ef4444';
+    const label = targetType === 'origin' ? 'Điểm xuất phát' : 'Điểm đến';
+    updatePickMarker(targetType, localMatch.lat, localMatch.lng, color, label);
+    return true;
+  }
+
+  // 3. Tra cứu nhanh qua Photon API
+  try {
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=21.0285&lon=105.8030&limit=1&lang=default`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.features && data.features.length > 0) {
+        const f = data.features[0];
+        const lat = f.geometry.coordinates[1];
+        const lng = f.geometry.coordinates[0];
+        coords[targetType] = { lat, lng };
+        const color = targetType === 'origin' ? '#10b981' : '#ef4444';
+        const label = targetType === 'origin' ? 'Điểm xuất phát' : 'Điểm đến';
+        updatePickMarker(targetType, lat, lng, color, label);
+        return true;
+      }
+    }
+  } catch (e) {
+    console.warn("Lỗi resolveAddressFromInput:", e);
+  }
+
+  return false;
+}
+
 function handleAddressInput(type, query) {
-  const container = document.getElementById(`${type}-suggestions`);
-  const clearBtn = document.getElementById(`btn-clear-${type}`);
+  const { targetType, clearBtn, container } = getAddressElements(type);
   if (!container) return;
 
   if (clearBtn) {
@@ -634,7 +715,19 @@ function handleAddressInput(type, query) {
     else clearBtn.classList.add('hidden');
   }
 
-  if (!query || query.trim().length < 2) {
+  // Nếu người dùng xóa sạch text, xóa luôn tọa độ tương ứng
+  if (!query || query.trim().length === 0) {
+    coords[targetType] = null;
+    if (pickMarkers[targetType]) {
+      map.removeLayer(pickMarkers[targetType]);
+      pickMarkers[targetType] = null;
+    }
+    container.innerHTML = '';
+    container.classList.add('hidden');
+    return;
+  }
+
+  if (query.trim().length < 2) {
     container.innerHTML = '';
     container.classList.add('hidden');
     return;
@@ -643,11 +736,11 @@ function handleAddressInput(type, query) {
   clearTimeout(addressDebounceTimer);
   addressDebounceTimer = setTimeout(() => {
     executeAddressSearch(type, query.trim());
-  }, 280);
+  }, 250);
 }
 
 async function executeAddressSearch(type, query) {
-  const container = document.getElementById(`${type}-suggestions`);
+  const { targetType, container } = getAddressElements(type);
   if (!container) return;
 
   container.innerHTML = `<div class="p-2.5 text-center text-slate-400 text-xs flex items-center justify-center gap-1.5"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>Đang tìm địa chỉ...</span></div>`;
@@ -712,7 +805,7 @@ async function executeAddressSearch(type, query) {
   }
 
   container.innerHTML = allResults.slice(0, 6).map(item => `
-    <div onclick="selectAddress('${type}', ${item.lat}, ${item.lng}, '${encodeURIComponent(item.name)}')" 
+    <div onclick="selectAddress('${targetType}', ${item.lat}, ${item.lng}, '${encodeURIComponent(item.name)}')" 
          class="p-2.5 hover:bg-blue-50 cursor-pointer transition flex items-start gap-2.5 text-left group border-b border-slate-100 last:border-b-0">
       <i data-lucide="map-pin" class="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5 group-hover:scale-110 transition"></i>
       <div class="flex-1 overflow-hidden">
@@ -729,19 +822,16 @@ function selectAddress(type, lat, lng, displayName) {
   try {
     displayName = decodeURIComponent(displayName);
   } catch (e) {}
-  coords[type] = { lat: Number(lat), lng: Number(lng) };
-  const inputEl = document.getElementById(`${type}-text`);
-  if (inputEl) inputEl.value = displayName;
-
-  const clearBtn = document.getElementById(`btn-clear-${type}`);
+  const { targetType, input, clearBtn, container } = getAddressElements(type);
+  coords[targetType] = { lat: Number(lat), lng: Number(lng) };
+  
+  if (input) input.value = displayName;
   if (clearBtn) clearBtn.classList.remove('hidden');
-
-  const container = document.getElementById(`${type}-suggestions`);
   if (container) container.classList.add('hidden');
 
-  const color = type === 'origin' ? '#10b981' : '#ef4444';
-  const label = type === 'origin' ? 'Điểm xuất phát' : 'Điểm đến';
-  updatePickMarker(type, lat, lng, color, label);
+  const color = targetType === 'origin' ? '#10b981' : '#ef4444';
+  const label = targetType === 'origin' ? 'Điểm xuất phát' : 'Điểm đến';
+  updatePickMarker(targetType, lat, lng, color, label);
 
   map.flyTo([lat, lng], 15, { duration: 0.8 });
 
@@ -752,32 +842,35 @@ function selectAddress(type, lat, lng, displayName) {
 }
 
 function clearLocation(type) {
-  coords[type] = null;
-  const inputEl = document.getElementById(`${type}-text`);
-  if (inputEl) inputEl.value = '';
-
-  const clearBtn = document.getElementById(`btn-clear-${type}`);
+  const { targetType, input, clearBtn, container } = getAddressElements(type);
+  coords[targetType] = null;
+  if (input) input.value = '';
   if (clearBtn) clearBtn.classList.add('hidden');
-
-  const container = document.getElementById(`${type}-suggestions`);
   if (container) container.classList.add('hidden');
 
-  if (pickMarkers[type]) {
-    map.removeLayer(pickMarkers[type]);
-    pickMarkers[type] = null;
+  if (pickMarkers[targetType]) {
+    map.removeLayer(pickMarkers[targetType]);
+    pickMarkers[targetType] = null;
   }
 }
 
-function handleAddressKeydown(event, type) {
+async function handleAddressKeydown(event, type) {
+  const { targetType, container } = getAddressElements(type);
   if (event.key === 'Enter') {
     event.preventDefault();
-    const container = document.getElementById(`${type}-suggestions`);
     if (container && !container.classList.contains('hidden')) {
       const firstItem = container.querySelector('[onclick]');
-      if (firstItem) firstItem.click();
+      if (firstItem) {
+        firstItem.click();
+        return;
+      }
+    }
+    // Nếu dropdown chưa có hoặc người dùng nhấn Enter ngay
+    await resolveAddressFromInput(type);
+    if (coords.origin && coords.destination) {
+      calculateRoute();
     }
   } else if (event.key === 'Escape') {
-    const container = document.getElementById(`${type}-suggestions`);
     if (container) container.classList.add('hidden');
   }
 }
@@ -785,8 +878,7 @@ function handleAddressKeydown(event, type) {
 // Đóng dropdown khi click ra ngoài
 document.addEventListener('click', (e) => {
   ['origin', 'destination'].forEach(type => {
-    const container = document.getElementById(`${type}-suggestions`);
-    const input = document.getElementById(`${type}-text`);
+    const { input, container } = getAddressElements(type);
     if (container && !container.contains(e.target) && e.target !== input) {
       container.classList.add('hidden');
     }
