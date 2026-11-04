@@ -1,7 +1,7 @@
 /**
  * ========================================================
  * FloodNav - Map Controller & Core Interaction
- * Phụ trách: Thành viên 1 & 2 (Hợp tác nâng cấp)
+ * Phụ trách: Thành viên 1 & Thành viên 2 (Hợp tác nâng cấp)
  * Thư viện: Leaflet 1.9.4 (BSD-2-Clause - OSI Approved)
  * ========================================================
  */
@@ -25,7 +25,7 @@ let coords = {
 let currentPickMode = null; // 'origin' | 'destination' | 'report' | null
 let floodPoints = [];
 
-// 1. Khởi tạo bản đồ OpenStreetMap & CartoDB (100% Free & Open Source ODbL)
+// 1. Khởi tạo bản đồ
 function initMap() {
   // Tâm bản đồ tại trung tâm khu vực nghiên cứu Hà Nội (Cầu Giấy - Đống Đa)
   map = L.map('map', {
@@ -34,7 +34,7 @@ function initMap() {
     zoomControl: true
   });
 
-  // Lớp bản đồ chính: ESRI World Street Map (Akamai CDN tốc độ cao, 100% không dính watermark, không cần API key)
+  // Lớp bản đồ chính: ESRI World Street Map (Akamai CDN tốc độ cao, không dính watermark, không cần API key)
   esriBaseLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
     attribution: 'Tiles &copy; Esri &mdash; OpenStreetMap contributors',
     maxZoom: 19
@@ -47,7 +47,7 @@ function initMap() {
     subdomains: 'abcd'
   });
 
-  // Lớp bản đồ OpenStreetMap France (CDN châu Âu tốc độ cao, không watermark)
+  // Lớp bản đồ OpenStreetMap France (CDN châu Âu tốc độ cao)
   const osmFrLayer = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap France &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
@@ -66,7 +66,7 @@ function initMap() {
   currentBaseLayer.addTo(map);
 
   L.control.layers({
-    'Bản đồ Đường phố (ESRI - Khuyên dùng)': esriBaseLayer,
+    'Bản đồ Đường phố (ESRI)': esriBaseLayer,
     'Chế độ Ban đêm (Dark Matter)': darkBaseLayer,
     'OpenStreetMap (Bản đồ Pháp OSM-FR)': osmFrLayer,
     'OpenStreetMap Chuẩn': osmLayer
@@ -87,6 +87,9 @@ function initMap() {
 
   // Tải danh sách điểm ngập ban đầu
   loadFloodPoints();
+
+  // Kiểm tra và hiển thị hướng dẫn người dùng mới (Onboarding Guide)
+  checkFirstTimeVisitor();
 }
 
 // 2. Tải danh sách 8 điểm ngập và vẽ lên bản đồ
@@ -122,21 +125,21 @@ function renderFloodPoints(geojson) {
     const { id, name, lng, lat, depth_cm, threshold_cm, status } = fp;
     const depth = Number(depth_cm) || 0;
 
-    let bgColor = '#10b981'; // Green: <5cm
+    let bgColor = '#10b981'; // Xanh lá: an toàn
     let pulseClass = '';
     let radiusColor = '#10b981';
 
     if (status === 'warning') {
-      bgColor = '#f59e0b'; // Amber: 5-20cm
+      bgColor = '#f59e0b'; // Vàng: 5-20cm
       pulseClass = 'flood-pulse-warning';
       radiusColor = '#f59e0b';
     } else if (status === 'danger') {
-      bgColor = '#ef4444'; // Red: >=20cm
+      bgColor = '#ef4444'; // Đỏ: >=20cm
       pulseClass = 'flood-pulse-danger';
       radiusColor = '#ef4444';
     }
 
-    // FE-04: Hiệu ứng vùng ngập nước sóng tỏa động (Animated Pulsing Flood Waves)
+    // FE-04 Nâng cấp: Hiệu ứng vùng ngập nước sóng tỏa động (Animated Pulsing Flood Waves)
     if (depth >= 5) {
       const radiusMeters = Math.min(100 + depth * 2.5, 300);
       
@@ -516,7 +519,7 @@ function switchTab(tabId) {
   cancelPickMode();
 }
 
-// 11. Chuyển đổi Dark Mode nâng cao (CartoDB Dark Matter - FE-03)
+// 11. Chuyển đổi Dark Mode nâng cao (CartoDB Dark Matter)
 function toggleDarkMode() {
   document.body.classList.toggle('dark-mode');
   const isDark = document.body.classList.contains('dark-mode');
@@ -542,4 +545,27 @@ function toggleDarkMode() {
       currentBaseLayer = esriBaseLayer;
     }
   }
+}
+
+// 12. Modal Hướng Dẫn Sử Dụng Nhanh (Onboarding Guide - FE-05)
+function openHelpGuide() {
+  const modal = document.getElementById('onboarding-modal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeHelpGuide() {
+  const modal = document.getElementById('onboarding-modal');
+  if (modal) modal.classList.add('hidden');
+  try {
+    localStorage.setItem('floodnav_tour_seen', 'true');
+  } catch (e) {}
+}
+
+function checkFirstTimeVisitor() {
+  try {
+    const seen = localStorage.getItem('floodnav_tour_seen');
+    if (!seen) {
+      setTimeout(openHelpGuide, 500);
+    }
+  } catch (e) {}
 }
