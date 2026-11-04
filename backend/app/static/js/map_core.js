@@ -280,7 +280,27 @@ async function updateSensorDepth(pointId, depthCm) {
   }
 }
 
-// 5. Chế độ chọn điểm trên bản đồ (Pick Mode)
+// 5. Chế độ chọn điểm trên bản đồ & Điều khiển giao diện Mobile (FE-02)
+function toggleMobilePanel(show) {
+  const panel = document.getElementById('sidebar-panel');
+  const openBtn = document.getElementById('btn-mobile-open-panel');
+  if (!panel) return;
+
+  if (show) {
+    panel.classList.remove('translate-y-full');
+    panel.classList.add('translate-y-0');
+    if (openBtn) openBtn.classList.add('hidden');
+  } else {
+    panel.classList.add('translate-y-full');
+    panel.classList.remove('translate-y-0');
+    if (openBtn) openBtn.classList.remove('hidden');
+  }
+
+  setTimeout(() => {
+    if (window.map) map.invalidateSize();
+  }, 320);
+}
+
 function setPickMode(mode) {
   currentPickMode = mode;
   const hint = document.getElementById('pick-hint');
@@ -294,12 +314,20 @@ function setPickMode(mode) {
   } else if (mode === 'report') {
     hintText.innerText = 'Nhấp lên vị trí ngập bạn muốn báo cáo...';
   }
+
+  // Tự động thu gọn bảng điều khiển trên Mobile để người dùng dễ dàng chấm điểm trên bản đồ
+  if (window.innerWidth < 640) {
+    toggleMobilePanel(false);
+  }
 }
 
 function cancelPickMode() {
   currentPickMode = null;
   const hint = document.getElementById('pick-hint');
   if (hint) hint.classList.add('hidden');
+  if (window.innerWidth < 640) {
+    toggleMobilePanel(true);
+  }
 }
 
 function onMapClick(e) {
@@ -327,6 +355,11 @@ function onMapClick(e) {
   }
 
   cancelPickMode();
+
+  // Tự động mở lại bảng điều khiển trên Mobile sau khi chấm điểm xong
+  if (window.innerWidth < 640) {
+    toggleMobilePanel(true);
+  }
 }
 
 function updatePickMarker(type, lat, lng, color, label) {
@@ -516,6 +549,25 @@ function displayRouteResults(data) {
         dashArray: '8, 8'
       }).addTo(map);
     }
+  }
+
+  // Tối ưu trải nghiệm Mobile: tự động thu gọn bảng điều khiển và hiển thị thẻ tóm tắt nổi (FE-02)
+  if (window.innerWidth < 640) {
+    const card = document.getElementById('mobile-route-floating-card');
+    const title = document.getElementById('mobile-card-title');
+    const sub = document.getElementById('mobile-card-subtitle');
+    if (card && title && sub) {
+      if (safe && safe.found) {
+        title.innerText = same_route ? 'Lộ trình tối ưu (Không ngập)' : 'Đã tìm thấy lộ trình né ngập';
+        sub.innerText = `${(safe.distance_m / 1000).toFixed(1)} km • ${Math.round(safe.duration_min)} phút di chuyển`;
+        card.classList.remove('hidden');
+      } else {
+        title.innerText = 'Cảnh báo: Bị chặn ngập';
+        sub.innerText = 'Không còn đường an toàn cho xe này';
+        card.classList.remove('hidden');
+      }
+    }
+    toggleMobilePanel(false);
   }
 }
 

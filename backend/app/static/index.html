@@ -15,72 +15,83 @@
   <!-- Lucide Icons (ISC License) -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Custom Styles (Phụ trách: Thành viên 1) -->
-  <link rel="stylesheet" href="/static/css/style.css?v=4.3" />
+  <link rel="stylesheet" href="/static/css/style.css?v=4.4" />
 </head>
 <body class="bg-slate-100 text-slate-800 h-screen flex flex-col font-sans overflow-hidden transition-colors duration-300">
 
-  <!-- Header -->
-  <header class="bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white shadow-md z-20 flex-shrink-0">
-    <div class="w-full px-4 sm:px-5 py-2.5 flex items-center justify-between">
-      <div class="flex items-center space-x-3">
-        <div class="p-2 bg-white/20 rounded-xl backdrop-blur-sm shadow-inner">
-          <i data-lucide="waves" class="w-6 h-6 text-cyan-200"></i>
+  <!-- Header (FE-02: Responsive Mobile & Desktop Navbar) -->
+  <header class="bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white shadow-md z-40 flex-shrink-0">
+    <div class="w-full px-3 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between gap-1.5 sm:gap-2">
+      <div class="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
+        <div class="p-1.5 sm:p-2 bg-white/20 rounded-xl backdrop-blur-sm shadow-inner flex-shrink-0">
+          <i data-lucide="waves" class="w-5 h-5 sm:w-6 sm:h-6 text-cyan-200"></i>
         </div>
         <div>
-          <h1 class="text-lg font-extrabold tracking-tight flex items-center gap-2">
-            FloodNav <span class="text-[11px] font-bold px-2 py-0.5 bg-cyan-400 text-slate-900 rounded-full shadow-sm">Hà Nội</span>
+          <h1 class="text-base sm:text-lg font-extrabold tracking-tight flex items-center gap-1.5 sm:gap-2">
+            FloodNav <span class="text-[10px] sm:text-[11px] font-bold px-1.5 sm:px-2 py-0.5 bg-cyan-400 text-slate-900 rounded-full shadow-sm">Hà Nội</span>
           </h1>
           <p class="text-[11px] text-blue-100 hidden sm:block">Hệ thống Định tuyến Thông minh & Cảnh báo Ngập lụt Thời gian thực</p>
         </div>
       </div>
 
-      <!-- Quick Action Controls -->
-      <div class="flex items-center gap-1.5 sm:gap-2">
+      <!-- Quick Action Controls (Co giãn mượt mà trên Mobile) -->
+      <div class="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
         <!-- Voice Toggle (Thành viên 3) -->
-        <button onclick="VoiceWarning.toggleVoice()" title="Bật/Tắt Cảnh báo Giọng nói Tiếng Việt" class="p-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-medium transition flex items-center gap-1">
+        <button onclick="VoiceWarning.toggleVoice()" title="Bật/Tắt Cảnh báo Giọng nói Tiếng Việt" class="p-1.5 sm:p-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-medium transition flex items-center gap-1 flex-shrink-0">
           <i id="voice-toggle-icon" data-lucide="volume-2" class="w-4 h-4 text-cyan-200"></i>
           <span class="hidden md:inline text-xs">Giọng nói</span>
         </button>
 
         <!-- Storm Simulator Dropdown (Thành viên 3) -->
-        <div class="relative inline-block text-left">
-          <select onchange="StormSimulator.applyScenario(this.value)" class="bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-semibold rounded-lg px-2.5 py-1.5 outline-none cursor-pointer backdrop-blur-sm">
-            <option value="clear" class="text-slate-900">☀️ Trời tạnh (0mm)</option>
-            <option value="light_rain" class="text-slate-900">🌦️ Mưa rào (20mm)</option>
-            <option value="heavy_storm" class="text-slate-900">⛈️ Mưa lớn (50mm)</option>
-            <option value="extreme_flood" class="text-slate-900">🌊 Bão lịch sử (100mm)</option>
+        <div class="relative inline-block text-left flex-shrink-0">
+          <select onchange="StormSimulator.applyScenario(this.value)" class="bg-white/15 hover:bg-white/25 border border-white/20 text-white text-[11px] sm:text-xs font-semibold rounded-lg px-1.5 sm:px-2.5 py-1 sm:py-1.5 outline-none cursor-pointer backdrop-blur-sm max-w-[105px] sm:max-w-none">
+            <option value="clear" class="text-slate-900">☀️ Tạnh (0mm)</option>
+            <option value="light_rain" class="text-slate-900">🌦️ Mưa (20mm)</option>
+            <option value="heavy_storm" class="text-slate-900">⛈️ Lớn (50mm)</option>
+            <option value="extreme_flood" class="text-slate-900">🌊 Bão (100mm)</option>
           </select>
         </div>
 
         <!-- Urban Dashboard Modal Trigger (Thành viên 3) -->
-        <button onclick="FloodDashboard.openDashboard()" title="Mở Dashboard Thống kê Đô thị" class="px-2.5 py-1.5 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-semibold flex items-center gap-1 transition">
+        <button onclick="FloodDashboard.openDashboard()" title="Mở Dashboard Thống kê Đô thị" class="p-1.5 sm:px-2.5 sm:py-1.5 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-semibold flex items-center gap-1 transition flex-shrink-0">
           <i data-lucide="bar-chart-2" class="w-4 h-4 text-emerald-300"></i>
           <span class="hidden md:inline text-xs">Thống kê</span>
         </button>
 
         <!-- Dark Mode Toggle (Thành viên 1) -->
-        <button onclick="toggleDarkMode()" title="Chuyển chế độ Sáng / Tối" class="p-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs transition">
+        <button onclick="toggleDarkMode()" title="Chuyển chế độ Sáng / Tối" class="p-1.5 sm:p-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs transition flex-shrink-0">
           <i id="dark-mode-icon" data-lucide="moon" class="w-4 h-4"></i>
         </button>
 
         <!-- Help Tour Modal Trigger (FE-05) -->
-        <button onclick="openHelpGuide()" title="Hướng dẫn sử dụng nhanh" class="p-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-bold transition flex items-center gap-1 text-cyan-200">
+        <button onclick="openHelpGuide()" title="Hướng dẫn sử dụng nhanh" class="p-1.5 sm:p-2 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-bold transition flex items-center gap-1 text-cyan-200 flex-shrink-0">
           <i data-lucide="help-circle" class="w-4 h-4"></i>
         </button>
 
         <!-- Refresh Data -->
-        <button onclick="loadFloodPoints()" class="p-2 bg-cyan-400 hover:bg-cyan-300 text-slate-900 rounded-lg text-xs font-bold shadow transition" title="Làm mới dữ liệu">
+        <button onclick="loadFloodPoints()" class="p-1.5 sm:p-2 bg-cyan-400 hover:bg-cyan-300 text-slate-900 rounded-lg text-xs font-bold shadow transition flex-shrink-0" title="Làm mới dữ liệu">
           <i data-lucide="refresh-cw" class="w-4 h-4"></i>
         </button>
       </div>
     </div>
   </header>
 
-  <!-- Main Work Area -->
-  <div class="flex-1 flex relative overflow-hidden">
+  <!-- Main Work Area (Hỗ trợ Mobile Full-screen Map & Collapsible Drawer) -->
+  <div class="flex-1 flex flex-col sm:flex-row relative overflow-hidden">
 
     <!-- Left Sidebar Control Panel (Thành viên 1) -->
-    <aside class="w-full sm:w-[420px] bg-white shadow-2xl z-10 flex flex-col h-full border-r border-slate-200 transition-all duration-300">
+    <aside id="sidebar-panel" class="fixed inset-x-0 bottom-0 top-[48px] sm:top-0 sm:relative sm:inset-auto w-full sm:w-[420px] bg-white shadow-2xl z-30 flex flex-col h-[calc(100vh-48px)] sm:h-full border-r border-slate-200 transition-transform duration-300 translate-y-0">
+      
+      <!-- Mobile Bar: Drag indicator & Thu gọn xem bản đồ (sm:hidden) -->
+      <div class="sm:hidden flex items-center justify-between px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex-shrink-0">
+        <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+          <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-blue-600"></i> Bảng điều khiển tìm đường
+        </span>
+        <button type="button" onclick="toggleMobilePanel(false)" class="flex items-center gap-1 text-xs font-bold text-blue-600 bg-white border border-blue-200 px-3 py-1 rounded-lg hover:bg-blue-50 active:scale-95 shadow-sm transition">
+          <i data-lucide="map" class="w-3.5 h-3.5"></i>
+          <span>Xem bản đồ</span>
+        </button>
+      </div>
       
       <!-- Tabs Navigation -->
       <div class="flex border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
@@ -326,8 +337,8 @@
       </div>
     </aside>
 
-    <!-- Map Canvas Container -->
-    <main class="flex-1 h-full relative">
+    <!-- Map Canvas Container (Hiển thị 100% không gian trên Mobile & Desktop) -->
+    <main class="w-full h-full flex-1 relative z-0">
       <div id="map" class="w-full h-full"></div>
 
       <!-- Map Floating Helper -->
@@ -336,6 +347,30 @@
         <span id="pick-hint-text">Nhấp lên bản đồ để chọn vị trí...</span>
         <button onclick="cancelPickMode()" class="ml-2 text-slate-400 hover:text-white">&times;</button>
       </div>
+
+      <!-- Mobile Floating Route Summary Card (sm:hidden) -->
+      <div id="mobile-route-floating-card" class="hidden sm:hidden fixed bottom-16 left-3 right-3 bg-white/95 backdrop-blur-md rounded-2xl p-3 shadow-2xl border border-slate-200 z-[500] transition">
+        <div class="flex items-center justify-between">
+          <div class="flex-1 pr-2">
+            <div class="flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping"></span>
+              <span class="text-xs font-bold text-slate-800" id="mobile-card-title">Lộ trình né ngập an toàn</span>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-0.5 truncate" id="mobile-card-subtitle">Khoảng cách và thời gian</p>
+          </div>
+          <button type="button" onclick="toggleMobilePanel(true)" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow flex items-center gap-1 active:scale-95 transition">
+            <i data-lucide="list" class="w-3.5 h-3.5"></i>
+            <span>Chi tiết</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Mobile Floating Button to Open Panel (sm:hidden) -->
+      <button id="btn-mobile-open-panel" type="button" onclick="toggleMobilePanel(true)" 
+              class="hidden sm:hidden fixed bottom-4 left-1/2 -translate-x-1/2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 z-[500] border border-white/60 active:scale-95 transition">
+        <i data-lucide="navigation" class="w-4 h-4 text-cyan-200"></i>
+        <span>Bảng tìm đường</span>
+      </button>
     </main>
 
   </div>
@@ -442,7 +477,7 @@
        Nhúng các file JS độc lập (Zero-Conflict)
        ======================================================== -->
   <!-- 1. Controller Bản đồ chính (Thành viên 1 & 2) -->
-  <script src="/static/js/map_core.js?v=4.6"></script>
+  <script src="/static/js/map_core.js?v=4.7"></script>
 
   <!-- 2. Module Cảnh báo Giọng nói Tiếng Việt (Thành viên 3) -->
   <script src="/static/js/voice_warning.js?v=3.1"></script>
