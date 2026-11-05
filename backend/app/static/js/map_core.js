@@ -1,15 +1,13 @@
 /**
 
- * ========================================================
-
+ * =================================================
  * FloodNav - Map Controller & Core Interaction
 
  * Phụ trách: Thành viên 1 & Thành viên 2 (Hợp tác nâng cấp)
 
  * Thư viện: Leaflet 1.9.4 (BSD-2-Clause - OSI Approved)
 
- * ========================================================
-
+ * =================================================
  */
 
 
@@ -74,6 +72,13 @@ function initMap() {
 
 
   // Lớp bản đồ chính: ESRI World Street Map (Akamai CDN tốc độ cao, không dính watermark, không cần API key)
+
+  // FE-01: Cách ly container bản đồ tránh lỗi xung đột z-index modal
+  const mapContainer = map.getContainer();
+  mapContainer.style.isolation = 'isolate';
+  if (mapContainer.parentElement) {
+    mapContainer.parentElement.style.isolation = 'isolate';
+  }
 
   esriBaseLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
 
@@ -232,6 +237,7 @@ function initMap() {
   // Tải danh sách điểm ngập ban đầu
 
   loadFloodPoints();
+  checkPostGISConnection();
 
 
 
@@ -1680,12 +1686,10 @@ function checkFirstTimeVisitor() {
 
 
 
-// ========================================================
-
+// =================================================
 // 13. TÌM KIẾM ĐỊA CHỈ & GỢI Ý ĐỊA ĐIỂM (Address Geocoding - FE-02)
 
-// ========================================================
-
+// =================================================
 let addressDebounceTimer = null;
 
 
@@ -2262,9 +2266,27 @@ document.addEventListener('click', (e) => {
 
 
 
-// ========================================================
+// FE-01: Kiểm tra trạng thái PostGIS kết nối cho Floating Header
+async function checkPostGISConnection() {
+  const badge = document.getElementById('postgis-status-badge');
+  if (!badge) return;
+  try {
+    const res = await fetch('/api/health');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.database === 'connected') {
+        badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>PostGIS Live';
+        badge.className = 'hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/20 border border-emerald-400/30 text-emerald-100 rounded-full text-[11px] font-semibold';
+        return;
+      }
+    }
+  } catch (e) {}
+  badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400"></span>PostGIS Standby';
+  badge.className = 'hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 border border-amber-400/30 text-amber-100 rounded-full text-[11px] font-semibold';
+}
+// =================================================
 // Xuất các biến và hàm điều khiển quan trọng ra window
-// ========================================================
+// =================================================
 window.floodPoints = floodPoints;
 window.coords = coords;
 if (typeof map !== 'undefined') window.map = map;

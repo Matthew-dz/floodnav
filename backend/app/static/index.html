@@ -42,7 +42,7 @@
 
   <!-- Header (FE-02: Responsive Mobile & Desktop Navbar) -->
 
-  <header class="bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white shadow-md z-40 flex-shrink-0">
+  <header class="floating-header mx-2 sm:mx-4 mt-2 sm:mt-2.5 bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white rounded-2xl shadow-xl border border-white/20 z-40 flex-shrink-0 backdrop-blur-md">
 
     <div class="w-full px-3 sm:px-5 py-2 sm:py-2.5 flex items-center justify-between gap-1.5 sm:gap-2">
 
@@ -70,6 +70,17 @@
 
 
 
+      <!-- Trạng thái kết nối PostGIS & Chuyển tab nhanh (FE-01) -->
+      <div class="hidden xl:flex items-center gap-3">
+        <div id="postgis-status-badge" class="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/20 border border-emerald-400/30 text-emerald-100 rounded-full text-[11px] font-semibold">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>PostGIS Live
+        </div>
+        <div class="flex items-center bg-black/20 p-0.5 rounded-xl text-xs font-semibold">
+          <button onclick="switchTab('route')" class="px-2.5 py-1 rounded-lg hover:bg-white/20 transition flex items-center gap-1"><i data-lucide="navigation" class="w-3.5 h-3.5"></i> Tìm đường</button>
+          <button onclick="switchTab('points')" class="px-2.5 py-1 rounded-lg hover:bg-white/20 transition flex items-center gap-1"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i> Điểm ngập</button>
+          <button onclick="switchTab('report')" class="px-2.5 py-1 rounded-lg hover:bg-white/20 transition flex items-center gap-1"><i data-lucide="send" class="w-3.5 h-3.5"></i> Báo ngập</button>
+        </div>
+      </div>
       <!-- Quick Action Controls (Co giãn mượt mà trên Mobile) -->
 
       <div class="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
