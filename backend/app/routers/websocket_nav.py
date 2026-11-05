@@ -7,7 +7,7 @@ Tính năng chính:
 1. Lưu phiên điều hướng (NavSession) theo từng session_id: toạ độ GPS, điểm đến, phương tiện, lộ trình.
 2. Theo dõi vị trí GPS của phương tiện theo thời gian thực (update_location).
 3. Kiểm tra các đoạn đường phía trước trên tuyến đường thực tế (trigger_reroute_check).
-4. Tự động kích hoạt thuật toán A* (Dijkstra né ngập) để tìm lộ trình an toàn mới khi phát hiện nguy hiểm.
+4. Tự động kích hoạt thuật toán A* né ngập để tìm lộ trình an toàn mới khi phát hiện nguy hiểm.
 """
 import json
 import logging

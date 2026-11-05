@@ -269,15 +269,10 @@
         <div id="tab-route" class="space-y-4">
 
           <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800 flex items-start gap-2">
-
             <i data-lucide="info" class="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-600"></i>
-
-            <div>
-
-              Thuật toán Dijkstra sẽ tự động <strong>phạt nặng</strong> các điểm ngập sâu và <strong>chặn hoàn toàn</strong> những đoạn đường vượt ngưỡng chịu ngập của xe bạn.
-
+            <div class="leading-relaxed">
+              Thuật toán <strong>A* (A-Star)</strong> tự động <strong>phạt chi phí</strong> đoạn ngập nhẹ (&ge; 5cm) và <strong>chặn hoàn toàn</strong> đoạn ngập vượt ngưỡng xe (Xe máy &ge; 20cm, Ô tô &ge; 30cm) để tìm lộ trình né ngập tối ưu.
             </div>
-
           </div>
 
 
@@ -1043,9 +1038,8 @@
 
           <div class="text-xs">
 
-            <h4 class="font-bold text-slate-800">Tìm lộ trình né ngập thông minh (Dijkstra / A*)</h4>
-
-            <p class="text-slate-600 mt-0.5">Chọn loại xe (Xe máy &lt; 20cm / Ô tô &lt; 30cm) và bấm thử nhanh các tuyến mẫu như <em>Xuân Thủy ➔ Láng Hạ</em> để xem thuật toán tự động né các tuyến phố bị ngập.</p>
+            <h4 class="font-bold text-slate-800">Tìm lộ trình né ngập thông minh (Thuật toán A*)</h4>
+            <p class="text-slate-600 mt-0.5">Hệ thống áp dụng thuật toán A* với hàm chi phí an toàn: đoạn ngập &ge; 5cm bị phạt chi phí để ưu tiên tuyến vòng khô ráo; đoạn ngập vượt ngưỡng chịu ngập của xe (Xe máy &ge; 20cm, Ô tô &ge; 30cm) sẽ bị chặn hoàn toàn.</p>
 
           </div>
 
