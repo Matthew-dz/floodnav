@@ -115,3 +115,75 @@ body.dark-mode .text-slate-600 {
 body.dark-mode ::-webkit-scrollbar-thumb {
   background: #475569;
 }
+
+/* Khối trạng thái PostGIS*/
+.leaflet-bottom.leaflet-right .postgis-status {
+  margin: 0 0 20px 0;
+  padding: 0 5px;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: right;
+  opacity: 0.7;
+  pointer-events: none;
+  transition: color 0.3s ease;
+}
+.leaflet-bottom.leaflet-right .postgis-status.is-online  { color: rgb(34 211 238); }
+.leaflet-bottom.leaflet-right .postgis-status.is-offline { color: rgb(225 29 72); }
+
+/* Ẩn / hiện sidebar */
+#sidebar {
+  position: relative;
+  transition: margin-left 0.4s ease, margin-top 0.4s ease; /* trượt vào/ra 0.4s */
+}
+
+#sidebar-toggle {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 9999px;
+  border: 1px solid rgb(15 23 42);
+  background: #ffffff;
+  color: rgb(15 23 42);
+  box-shadow: none;
+  cursor: pointer;
+  z-index: 5;
+  /* Responsive (< 640px): giữa border dưới của panel */
+  left: 50%;
+  bottom: -14.5px;
+  transform: translateX(-50%);
+  transition: bottom 0.4s ease, right 0.4s ease;
+}
+#sidebar-toggle svg {
+  width: 16px;
+  height: 16px;
+  transform: rotate(90deg); /* dấu < xoay 90° thành ^ */
+  transition: transform 0.2s ease;
+}
+
+/* Responsive, đang đóng: panel trượt lên; 45dvh = chiều cao panel (h-[45dvh]) */
+#sidebar.is-collapsed { margin-top: -45dvh; }
+#sidebar.is-collapsed #sidebar-toggle { bottom: -49px; } /* cách mép trên 20px */
+#sidebar.is-collapsed #sidebar-toggle svg { transform: rotate(270deg); } /* ^ thành v */
+
+/* Màn hình >= 640px: nút ở giữa border phải */
+@media (min-width: 640px) {
+  #sidebar-toggle {
+    left: auto;
+    bottom: auto;
+    top: 50%;
+    right: -14.5px;
+    transform: translateY(-50%);
+  }
+  #sidebar-toggle svg { transform: none; }
+
+  /* Đang đóng: panel trượt sang trái; 420px = chiều rộng panel */
+  #sidebar.is-collapsed { margin-top: 0; margin-left: -420px; }
+  #sidebar.is-collapsed #sidebar-toggle { bottom: auto; right: -49px; } /* cách mép trái 20px */
+  #sidebar.is-collapsed #sidebar-toggle svg { transform: rotate(180deg); }
+}

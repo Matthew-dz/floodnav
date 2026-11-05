@@ -12,10 +12,10 @@ static/js/map_core.js
 
 # Thiết kế Floating Navbar & Header	
 ## Chi tiết
-* Tạo thanh Header nổi bo tròn (Floating Card)
-* Hiển thị logo FloodNav, trạng thái kết nối PostGIS, nút chuyển tab nhanh.
+* [x] Tạo thanh Header nổi bo tròn (Floating Card)
+* [x] Hiển thị logo FloodNav, trạng thái kết nối PostGIS, nút chuyển tab nhanh.
 ## File
 * static/index.html
 * static/css/style.css	
 ## Tiêu chí
-Header dạng thẻ nổi hiện đại, có responsive trên di động.
+[x] Header dạng thẻ nổi hiện đại, có responsive trên di động.

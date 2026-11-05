@@ -43,7 +43,12 @@ function initMap() {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19
   }).addTo(map);
-  //Không nên 
+
+  // Xem trạng thái PostGIS sau mỗi 15s
+  addPostgisStatusControl();
+  checkPostgisStatus();
+  setInterval(checkPostgisStatus, 15000);
+
   map.attributionControl.setPrefix(false);
 
   floodCirclesLayer.addTo(map);
@@ -488,4 +493,53 @@ function toggleDarkMode() {
     btn.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
     if (window.lucide) lucide.createIcons();
   }
+}
+
+// 12. Trạng thái kết nối PostGIS
+// Để xem được trạng thái PostGIS thì buộc phải can thiệp vào core_map.js
+function addPostgisStatusControl() {
+  const ctl = L.control({ position: 'bottomright' });
+  ctl.onAdd = function () {
+    const div = L.DomUtil.create('div', 'postgis-status is-offline');
+    div.id = 'postgis-status';
+    div.textContent = 'Chưa kết nối PostGIS';
+    return div;
+  };
+  ctl.addTo(map);
+}
+
+function isPostgisConnected(data) {
+  return !!data && data.status === 'ok' &&
+         typeof data.postgis === 'string' && data.postgis.trim() !== '';
+}
+
+async function checkPostgisStatus() {
+  const el = document.getElementById('postgis-status');
+  if (!el) return;
+  let ok = false;
+  try {
+    const res = await fetch('/api/health', { cache: 'no-store' });
+    if (res.ok) ok = isPostgisConnected(await res.json());
+  } catch (err) {
+    ok = false;
+  }
+  el.classList.toggle('is-online', ok);
+  el.classList.toggle('is-offline', !ok);
+  el.textContent = ok ? 'Đã kết nối PostGIS' : 'Chưa kết nối PostGIS';
+}
+
+// 13. Ẩn / hiện sidebar - chức năng ngoài, hoặc là "Nút chuyển Tab nhanh"
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  const collapsed = sidebar.classList.toggle('is-collapsed');
+  const btn = document.getElementById('sidebar-toggle');
+  if (btn) btn.setAttribute('aria-expanded', String(!collapsed));
+
+  // Cho bản đồ tự co giãn theo từng khung hình trong lúc panel trượt (0.4s)
+  const start = performance.now();
+  (function tick() {
+    if (map) map.invalidateSize();
+    if (performance.now() - start < 450) requestAnimationFrame(tick);
+  })();
 }

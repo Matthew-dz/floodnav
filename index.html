@@ -17,16 +17,16 @@
   <!-- Custom Styles (Phụ trách: Thành viên 1) -->
   <link rel="stylesheet" href="/static/css/style.css?v=3.0" />
 </head>
-<body class="bg-slate-100 text-slate-800 h-screen flex flex-col font-sans overflow-hidden transition-colors duration-300">
+<body class="bg-slate-100 text-slate-800 h-dvh flex flex-col font-sans overflow-hidden transition-colors duration-300">
 
   <!-- Header -->
-  <header class="bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white shadow-md z-20 flex-shrink-0">
-    <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between">
+  <header class="bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white shadow-md z-20 flex-shrink-0 m-3 rounded-xl">
+    <div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-2">
       <div class="flex items-center space-x-3">
         <div class="p-2 bg-white/20 rounded-xl backdrop-blur-sm shadow-inner">
           <i data-lucide="waves" class="w-6 h-6 text-cyan-200"></i>
         </div>
-        <div>
+        <div class="hidden sm:block">
           <h1 class="text-lg font-extrabold tracking-tight flex items-center gap-2">
             FloodNav <span class="text-[11px] font-bold px-2 py-0.5 bg-cyan-400 text-slate-900 rounded-full shadow-sm">Hà Nội</span>
           </h1>
@@ -44,7 +44,7 @@
 
         <!-- Storm Simulator Dropdown (Thành viên 3) -->
         <div class="relative inline-block text-left">
-          <select onchange="StormSimulator.applyScenario(this.value)" class="bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-semibold rounded-lg px-2.5 py-1.5 outline-none cursor-pointer backdrop-blur-sm">
+          <select onchange="StormSimulator.applyScenario(this.value)" class="bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-semibold rounded-lg px-2.5 py-1.5 outline-none cursor-pointer backdrop-blur-sm max-w-[120px] sm:max-w-none">
             <option value="clear" class="text-slate-900">☀️ Trời tạnh (0mm)</option>
             <option value="light_rain" class="text-slate-900">🌦️ Mưa rào (20mm)</option>
             <option value="heavy_storm" class="text-slate-900">⛈️ Mưa lớn (50mm)</option>
@@ -67,16 +67,22 @@
         <button onclick="loadFloodPoints()" class="p-2 bg-cyan-400 hover:bg-cyan-300 text-slate-900 rounded-lg text-xs font-bold shadow transition" title="Làm mới dữ liệu">
           <i data-lucide="refresh-cw" class="w-4 h-4"></i>
         </button>
-      </div>
     </div>
   </header>
 
   <!-- Main Work Area -->
-  <div class="flex-1 flex relative overflow-hidden">
+  <!-- Thay đổi class để reponsive -->
+  <div class="flex-1 min-h-0 flex flex-col sm:flex-row relative overflow-hidden">
 
-    <!-- Left Sidebar Control Panel (Thành viên 1) -->
-    <aside class="w-full sm:w-[420px] bg-white shadow-2xl z-10 flex flex-col h-full border-r border-slate-200 transition-all duration-300">
-      
+    <!-- Left Sidebar Control Panel (Thành viên 1) --> 
+    <aside id="sidebar" class="w-full sm:w-[420px] h-[45dvh] sm:h-full flex-shrink-0 bg-white shadow-2xl z-10 flex flex-col border-b sm:border-b-0 sm:border-r border-slate-200 transition-all duration-500">
+      <button id="sidebar-toggle" type="button" onclick="toggleSidebar()"
+        aria-label="Ẩn/hiện bảng điều khiển" aria-expanded="true" title="Ẩn/hiện bảng điều khiển">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+</button>
       <!-- Tabs Navigation -->
       <div class="flex border-b border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
         <button onclick="switchTab('route')" id="tab-btn-route" class="flex-1 py-3 px-2 border-b-2 border-blue-600 text-blue-600 flex items-center justify-center gap-1.5 transition font-bold">
@@ -285,19 +291,19 @@
       </div>
 
       <!-- Footer Legend -->
-      <div class="p-3 bg-slate-50 border-t border-slate-200 text-[11px] text-slate-600 flex items-center justify-between">
+      <div class="p-3 bg-slate-50 border-t border-slate-200 text-[11px] text-slate-600 flex items-center justify-between gap-y-1.5">
         <span class="font-bold text-slate-700">Chú giải:</span>
         <div class="flex items-center gap-3">
-          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> &lt;5cm An toàn</span>
-          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> 5-20cm Chú ý</span>
-          <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-600"></span> &gt;20cm Nguy hiểm</span>
+          <span class="flex flex-wrap items-center gap-x-3 gap-y-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> &lt;5cm An toàn</span>
+          <span class="flex flex-wrap items-center gap-x-3 gap-y-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> 5-20cm Chú ý</span>
+          <span class="flex flex-wrap items-center gap-x-3 gap-y-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-600"></span> &gt;20cm Nguy hiểm</span>
         </div>
       </div>
     </aside>
 
     <!-- Map Canvas Container -->
-    <main class="flex-1 h-full relative">
-      <div id="map" class="w-full h-full"></div>
+    <main class="flex-1 min-h-0 min-w-0 relative">
+      <div id="map" class="absolute inset-0"></div>
 
       <!-- Map Floating Helper -->
       <div id="pick-hint" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white px-4 py-2 rounded-full shadow-xl text-xs font-semibold backdrop-blur-sm z-[1000] flex items-center gap-2 border border-slate-700">
