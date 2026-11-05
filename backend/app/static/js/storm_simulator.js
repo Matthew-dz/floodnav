@@ -6,7 +6,7 @@
  * - Dropdown kịch bản mẫu (Tạnh, Mưa, Lớn, Bão)
  * - Thanh trượt lượng mưa thời gian thực (0 - 100 mm/h)
  * - Đồng bộ hai chiều giữa Dropdown & Slider
- * - Cập nhật tức thì 75 trạm ngập, vòng lan tỏa và tái định tuyến an toàn
+ * - Cập nhật tức thì 130 trạm ngập, vòng lan tỏa và tái định tuyến an toàn
  * ========================================================
  */
 
@@ -53,7 +53,7 @@ const StormSimulator = (function () {
     return null;
   }
 
-  // 1. Cập nhật giao diện 75 trạm cục bộ tức thì (Real-time 60fps)
+  // 1. Cập nhật giao diện 130 trạm cục bộ tức thì (Real-time 60fps)
   function updateLocalPoints(mm) {
     const seq = ++requestSeq;
     const points = getFloodPoints();
@@ -81,7 +81,7 @@ const StormSimulator = (function () {
 
     if (seq !== requestSeq) return;
 
-    // Vẽ lại toàn bộ 75 marker, vòng cảnh báo, bảng điểm ngập và thông báo viewport
+    // Vẽ lại toàn bộ 130 marker, vòng cảnh báo, bảng điểm ngập và thông báo viewport
     if (typeof window.renderFloodPoints === 'function') {
       window.renderFloodPoints(points);
     } else if (typeof renderFloodPoints === 'function') {
@@ -187,11 +187,87 @@ const StormSimulator = (function () {
     }, 250);
   }
 
+    // 6. Trở về trạng thái & giao diện mặc định sau khi mô phỏng thời tiết
+  function resetToDefault() {
+    clearTimeout(sliderSyncTimer);
+
+    // 6.1. Đưa Dropdown về kịch bản 'clear' (Tạnh 0mm) và xóa tuỳ chỉnh (nếu có)
+    const select = document.getElementById('storm-scenario-select');
+    if (select) {
+      const customOpt = select.querySelector('option[value="custom"]');
+      if (customOpt) customOpt.remove();
+      select.value = 'clear';
+    }
+
+    // 6.2. Đưa thanh trượt Slider về 0 mm/h
+    const slider = document.getElementById('storm-slider');
+    const val = document.getElementById('storm-slider-value');
+    if (slider) slider.value = 0;
+    if (val) val.innerText = '0 mm/h';
+
+    setLabel('Trời tạnh (Bình thường) - Lượng mưa: 0 mm/h');
+
+    // 6.3. Khôi phục toàn bộ các trạm quan trắc về trạng thái mặc định (0 cm ngập)
+    updateLocalPoints(0);
+
+    // 6.4. Đồng bộ 0 cm lên backend
+    syncBackendAndReroute(0);
+
+    // 6.5. Dừng mô phỏng xe chạy và xóa lộ trình nếu có
+    if (window.VehicleSim && typeof VehicleSim.stop === 'function') {
+      VehicleSim.stop();
+    }
+    if (typeof routeLayers !== 'undefined') {
+      if (routeLayers.safe && typeof map !== 'undefined' && map) {
+        map.removeLayer(routeLayers.safe);
+        routeLayers.safe = null;
+      }
+      if (routeLayers.fastest && typeof map !== 'undefined' && map) {
+        map.removeLayer(routeLayers.fastest);
+        routeLayers.fastest = null;
+      }
+    }
+    const resultCard = document.getElementById('route-results');
+    if (resultCard) resultCard.classList.add('hidden');
+
+    // 6.6. Xóa điểm xuất phát và điểm đến trên bản đồ (nếu có)
+    if (typeof clearLocation === 'function') {
+      clearLocation('origin');
+      clearLocation('destination');
+    }
+
+    // 6.7. Đặt lại camera bản đồ về góc nhìn mặc định Hà Nội
+    if (typeof map !== 'undefined' && map) {
+      map.setView([21.0285, 105.8030], 12, { animate: true });
+    }
+
+    // 6.8. Cập nhật banner cảnh báo khung nhìn
+    if (typeof updateViewportFloodAlert === 'function') {
+      updateViewportFloodAlert();
+    }
+
+    // 6.9. Tạo lại các biểu tượng Lucide
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+      lucide.createIcons();
+    }
+
+    // 6.10. Thông báo giọng nói (nếu người dùng bật loa cảnh báo)
+    if (window.VoiceWarning && typeof VoiceWarning.speak === 'function') {
+      VoiceWarning.speak('Đã trở về giao diện mặc định sau mô phỏng.');
+    }
+
+    // 6.11. Hiển thị thông báo Toast nổi
+    if (typeof showToast === 'function') {
+      showToast('Đã trở về giao diện mặc định ban đầu', 'success');
+    }
+  }
+
   return {
     applyScenario,
     onSliderInput,
     pushDepthsByRain: updateLocalPoints,
     updateLocalPoints,
+    resetToDefault,
     scenarios
   };
 })();
