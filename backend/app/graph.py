@@ -111,9 +111,10 @@ def fetch_flood_sources(use_ai_prediction: bool = False) -> list:
             reports = conn.execute(REPORTS_SQL).fetchall()
     except Exception as e:
         log.warning("DB query failed in fetch_flood_sources, using fallback: %s", e)
-        from .routers.flood_points import DEFAULT_FLOOD_POINTS
-        points = DEFAULT_FLOOD_POINTS
-        reports = []
+        from .routers.flood_points import get_fallback_flood_points
+        from .fallback_storage import get_fallback_reports
+        points = get_fallback_flood_points()
+        reports = get_fallback_reports(only_confirmed=True)
 
     ai_model = None
     if use_ai_prediction:

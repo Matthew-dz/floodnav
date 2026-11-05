@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Response
 from ..db import pool
 
 from ..schemas import FloodPointCreate, FloodPointUpdate
+from ..fallback_storage import get_latest_readings_map
 
 
 
@@ -332,6 +333,25 @@ SELECT_SQL = """
 
 
 
+
+def get_fallback_flood_points() -> list:
+    """
+    Tách biệt dữ liệu mẫu tĩnh (DEFAULT_FLOOD_POINTS) khỏi dữ liệu quan trắc thực tế.
+    Ghép dữ liệu trạm tĩnh với số đo quan trắc mới nhất từ fallback_storage.
+    Đảm bảo DEFAULT_FLOOD_POINTS hoàn toàn bất biến (immutable).
+    """
+    latest_map = get_latest_readings_map()
+    points = []
+    for p in DEFAULT_FLOOD_POINTS:
+        pt = dict(p)
+        pid = pt["id"]
+        if pid in latest_map:
+            latest = latest_map[pid]
+            pt["depth_cm"] = float(latest["depth_cm"])
+            pt["last_reading_at"] = latest.get("recorded_at")
+        points.append(pt)
+    return points
+
 def _status(depth: float, threshold: int) -> str:
 
     if depth < 5:
@@ -400,10 +420,9 @@ def _get_or_404(point_id: int) -> dict:
 
     
 
-    for p in DEFAULT_FLOOD_POINTS:
-
+    points = get_fallback_flood_points()
+    for p in points:
         if p["id"] == point_id:
-
             return _to_feature(p)
 
     raise HTTPException(404, f"Không tìm thấy điểm ngập id={point_id}")
@@ -430,7 +449,7 @@ def list_flood_points():
 
         log.warning("DB query failed in list_flood_points, returning fallback seed data: %s", e)
 
-        return {"type": "FeatureCollection", "features": [_to_feature(r) for r in DEFAULT_FLOOD_POINTS]}
+        return {"type": "FeatureCollection", "features": [_to_feature(r) for r in get_fallback_flood_points()]}
 
 
 

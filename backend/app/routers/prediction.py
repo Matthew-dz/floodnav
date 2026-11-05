@@ -91,6 +91,8 @@ def get_ai_predictions():
             """).fetchall()
     except Exception as e:
         log.warning("DB query failed in get_ai_predictions, using fallback data: %s", e)
+        from .flood_points import get_fallback_flood_points
+        fb_pts = get_fallback_flood_points()
         points = [
             {
                 "id": p["id"],
@@ -98,7 +100,7 @@ def get_ai_predictions():
                 "threshold_cm": p["threshold_cm"],
                 "current_depth": p.get("depth_cm", 0.0)
             }
-            for p in DEFAULT_FLOOD_POINTS
+            for p in fb_pts
         ]
 
     # Lấy lượng mưa thực tế từ Open-Meteo API

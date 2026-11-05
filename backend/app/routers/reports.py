@@ -5,6 +5,12 @@ from fastapi import APIRouter, HTTPException, Response
 
 from ..db import pool
 from ..schemas import ReportClear, ReportCreate
+from ..fallback_storage import (
+    save_fallback_report,
+    get_fallback_reports,
+    clear_fallback_reports,
+    delete_fallback_report,
+)
 
 log = logging.getLogger("floodnav.reports")
 router = APIRouter(prefix="/api/reports", tags=["Báo cáo của người dân"])
@@ -22,7 +28,7 @@ LEVEL_DEPTH_CM = {"light": 10, "medium": 25, "heavy": 40}
 POINT = "ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography"
 
 # Danh sách lưu tạm in-memory khi không có PostgreSQL (trên Vercel Serverless)
-_IN_MEMORY_REPORTS = []
+# Báo cáo dự phòng được chuyển sang lưu trữ bền vững tại fallback_storage.db
 
 
 @router.post("", status_code=201)
@@ -87,30 +93,14 @@ def create_report(body: ReportCreate):
             "expires_at": rep["expires_at"],
         }
     except Exception as e:
-        log.warning("DB query failed in create_report, using in-memory fallback: %s", e)
-        now = datetime.now(timezone.utc)
-        exp = now + timedelta(minutes=45)
-        new_id = len(_IN_MEMORY_REPORTS) + 1
-        item = {
-            "id": new_id,
-            "level": body.level,
-            "confirmed": True,
-            "created_at": now.isoformat(),
-            "expires_at": exp.isoformat(),
-            "lng": body.lng,
-            "lat": body.lat,
-            "user_id": body.user_id,
-            "photo_url": body.photo_url
-        }
-        _IN_MEMORY_REPORTS.append(item)
-        return {
-            "id": new_id,
-            "level": body.level,
-            "confirmed": True,
-            "nearby_reports": 1,
-            "need_more": 0,
-            "expires_at": exp.isoformat(),
-        }
+        log.warning("DB query failed in create_report, using persistent fallback: %s", e)
+        return save_fallback_report(
+            user_id=body.user_id,
+            lng=body.lng,
+            lat=body.lat,
+            level=body.level,
+            photo_url=body.photo_url,
+        )
 
 
 @router.get("")
@@ -146,7 +136,8 @@ def list_reports(only_confirmed: bool = False):
             ],
         }
     except Exception as e:
-        log.warning("DB query failed in list_reports, using in-memory fallback: %s", e)
+        log.warning("DB query failed in list_reports, using persistent fallback: %s", e)
+        fb_reports = get_fallback_reports(only_confirmed=only_confirmed)
         features = [
             {
                 "type": "Feature",
@@ -160,8 +151,7 @@ def list_reports(only_confirmed: bool = False):
                     "expires_at": r.get("expires_at"),
                 },
             }
-            for r in _IN_MEMORY_REPORTS
-            if not only_confirmed or r.get("confirmed", True)
+            for r in fb_reports
         ]
         return {
             "type": "FeatureCollection",
@@ -183,10 +173,8 @@ def clear_reports(body: ReportClear):
             ).fetchall()
         return {"cleared": len(rows)}
     except Exception as e:
-        log.warning("DB query failed in clear_reports, using in-memory fallback: %s", e)
-        cleared_count = len(_IN_MEMORY_REPORTS)
-        _IN_MEMORY_REPORTS.clear()
-        return {"cleared": cleared_count}
+        log.warning("DB query failed in clear_reports, using persistent fallback: %s", e)
+        return {"cleared": clear_fallback_reports()}
 
 
 @router.delete("/{report_id}", status_code=204)
@@ -198,7 +186,6 @@ def delete_report(report_id: int):
             raise HTTPException(404, f"Không tìm thấy báo cáo id={report_id}")
         return Response(status_code=204)
     except Exception as e:
-        log.warning("DB query failed in delete_report, using in-memory fallback: %s", e)
-        global _IN_MEMORY_REPORTS
-        _IN_MEMORY_REPORTS = [r for r in _IN_MEMORY_REPORTS if r["id"] != report_id]
+        log.warning("DB query failed in delete_report, using persistent fallback: %s", e)
+        delete_fallback_report(report_id)
         return Response(status_code=204)
