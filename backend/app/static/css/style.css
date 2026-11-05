@@ -369,6 +369,13 @@ body.dark-mode .floating-header {
   box-shadow: 0 4px 16px rgba(239, 68, 68, 0.55);
 }
 
+/* Cụm chứa các điểm mất tín hiệu / chưa có dữ liệu */
+.flood-cluster-offline {
+  background: linear-gradient(135deg, #64748b 0%, #475569 50%, #334155 100%);
+  box-shadow: 0 4px 14px rgba(100, 116, 139, 0.45);
+}
+
+
 .cluster-num {
   font-weight: 800;
   letter-spacing: -0.5px;

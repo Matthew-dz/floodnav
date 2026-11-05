@@ -98,7 +98,7 @@ def get_ai_predictions():
                 "id": p["id"],
                 "name": p["name"],
                 "threshold_cm": p["threshold_cm"],
-                "current_depth": p.get("depth_cm", 0.0)
+                "current_depth": p["depth_cm"] if p.get("depth_cm") is not None else 0.0
             }
             for p in fb_pts
         ]

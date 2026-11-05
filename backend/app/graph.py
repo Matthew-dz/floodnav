@@ -45,7 +45,8 @@ class RoadGraph:
         Trả về {(u, v, key): thông tin ngập} cho các đoạn đường nằm trong bán kính ảnh hưởng.
         Đoạn đường chịu nhiều nguồn thì lấy nguồn ngập sâu nhất.
         """
-        usable = [s for s in sources if s["depth_cm"] >= config.PENALTY_START_CM]
+        usable = [s for s in sources if s.get("depth_cm") is not None and s["depth_cm"] >= config.PENALTY_START_CM]
+
         result = {}
         if not usable:
             return result
@@ -127,6 +128,8 @@ def fetch_flood_sources(use_ai_prediction: bool = False) -> list:
 
     sources = []
     for p in points:
+        if p.get("depth_cm") is None:
+            continue
         d = float(p["depth_cm"])
         predicted_d = d
         if ai_model is not None and d >= 5.0:

@@ -43,6 +43,8 @@ def create_reading(body: ReadingCreate):
         row["depth_cm"] = float(row["depth_cm"])
         row["exceeds_threshold"] = row["depth_cm"] >= point["threshold_cm"]
         return row
+    except HTTPException:
+        raise
     except Exception as e:
         log.warning("DB query failed in create_reading, using in-memory fallback: %s", e)
         # Fallback in-memory cho Vercel Serverless
@@ -56,8 +58,8 @@ def create_reading(body: ReadingCreate):
                 break
 
         if target_pt is None:
-            # Mặc định gán vào điểm 1 nếu không khớp
-            target_pt = DEFAULT_FLOOD_POINTS[0]
+            raise HTTPException(404, "Không tìm thấy điểm ngập tương ứng")
+
 
         # Tách biệt dữ liệu quan trắc khỏi dữ liệu mặc định: KHÔNG sửa target_pt
         return save_fallback_reading(
