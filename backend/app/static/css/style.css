@@ -418,3 +418,23 @@ body.dark-mode .flood-cluster-badge {
 body.dark-mode .cluster-danger-dot {
   border-color: #1e293b;
 }
+
+/* Header Dropdown Menu Phụ (FE-02) */
+#header-more-dropdown {
+  transform-origin: top right;
+  animation: dropdown-pop 0.15s ease-out;
+}
+@keyframes dropdown-pop {
+  from { opacity: 0; transform: scale(0.95) translateY(-6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+body.dark-mode #header-more-dropdown {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+body.dark-mode #header-more-dropdown button:hover {
+  background-color: #1e293b !important;
+}
+

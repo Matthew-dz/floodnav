@@ -325,6 +325,8 @@ function initMap() {
 
   loadFloodPoints();
   checkPostGISConnection();
+  loadWeatherInfo();
+
 
 
 
@@ -398,6 +400,9 @@ function renderFloodPoints(data) {
   // Cập nhật số đếm trên Tab
   const countEl = document.getElementById('points-count');
   if (countEl) countEl.innerText = floodPoints.length;
+  const hdrCountEl = document.getElementById('hdr-points-count');
+  if (hdrCountEl) hdrCountEl.innerText = floodPoints.length;
+
 
   floodMarkersLayer.clearLayers();
   floodCirclesLayer.clearLayers();
@@ -1555,34 +1560,31 @@ async function submitReport() {
 
 
 
-// 10. Chuyển đổi Tab Sidebar
-
+// 10. Chuyển đổi Tab Sidebar & Thanh công cụ Header
 function switchTab(tabId) {
-
   ['route', 'points', 'report'].forEach(id => {
-
     const tab = document.getElementById(`tab-${id}`);
-
     const btn = document.getElementById(`tab-btn-${id}`);
+    const hdrBtn = document.getElementById(`hdr-btn-${id}`);
 
     if (tab) tab.classList.add('hidden');
-
     if (btn) btn.className = 'flex-1 py-3 px-2 border-b-2 border-transparent hover:text-slate-900 flex items-center justify-center gap-1.5 transition text-xs font-semibold text-slate-600';
-
+    if (hdrBtn) {
+      hdrBtn.className = 'px-2.5 sm:px-3 py-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 font-semibold text-xs transition flex items-center gap-1.5';
+    }
   });
 
-
-
   const activeTab = document.getElementById(`tab-${tabId}`);
-
   const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+  const activeHdrBtn = document.getElementById(`hdr-btn-${tabId}`);
 
   if (activeTab) activeTab.classList.remove('hidden');
-
   if (activeBtn) activeBtn.className = 'flex-1 py-3 px-2 border-b-2 border-blue-600 text-blue-600 flex items-center justify-center gap-1.5 transition font-bold text-xs';
+  if (activeHdrBtn) {
+    activeHdrBtn.className = 'px-2.5 sm:px-3 py-1.5 rounded-lg bg-white/25 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm border border-white/20';
+  }
 
   cancelPickMode();
-
 }
 
 
@@ -2280,15 +2282,61 @@ async function checkPostGISConnection() {
     if (res.ok) {
       const data = await res.json();
       if (data.database === 'connected') {
-        badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>PostGIS Live';
-        badge.className = 'hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/20 border border-emerald-400/30 text-emerald-100 rounded-full text-[11px] font-semibold';
+        badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span><span>PostGIS Live</span>';
+        badge.className = 'flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/20 border border-emerald-400/30 text-emerald-100 rounded-lg text-[11px] font-semibold cursor-default';
+        badge.title = 'PostGIS Live: Cơ sở dữ liệu không gian PostgreSQL kết nối thành công';
         return;
       }
     }
   } catch (e) {}
-  badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400"></span>PostGIS Standby';
-  badge.className = 'hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 border border-amber-400/30 text-amber-100 rounded-full text-[11px] font-semibold';
+  badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400"></span><span>PostGIS Standby</span>';
+  badge.className = 'flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 border border-amber-400/30 text-amber-100 rounded-lg text-[11px] font-semibold cursor-default';
+  badge.title = 'PostGIS Standby: Đang hoạt động ở chế độ bộ nhớ dự phòng In-Memory / SQLite';
 }
+
+// FE-02: Tải thông tin thời tiết & lượng mưa thực tế cho Nhóm 2 (Giám sát)
+async function loadWeatherInfo() {
+  const el = document.getElementById('weather-badge');
+  if (!el) return;
+  try {
+    const res = await fetch('/api/weather/hanoi');
+    if (res.ok) {
+      const data = await res.json();
+      const currentPrecip = data.hourly_forecast && data.hourly_forecast[0] ? data.hourly_forecast[0].precipitation_mm : 0;
+      const weatherText = currentPrecip > 0 ? `Mưa ${currentPrecip} mm` : `☀️ Tạnh ráo`;
+      el.innerHTML = `<i data-lucide="${currentPrecip > 0 ? 'cloud-rain' : 'cloud-sun'}" class="w-3.5 h-3.5 text-cyan-200"></i><span>Hà Nội: <b>${weatherText}</b></span>`;
+      el.title = `Dự báo lượng mưa tại Hà Nội: ${currentPrecip} mm/h (Open-Meteo API)`;
+      if (window.lucide) lucide.createIcons();
+      return;
+    }
+  } catch (e) {}
+  el.innerHTML = `<i data-lucide="sun" class="w-3.5 h-3.5 text-amber-300"></i><span>Hà Nội: <b>28°C • Tạnh</b></span>`;
+  if (window.lucide) lucide.createIcons();
+}
+
+// FE-02: Điều khiển Menu phụ Dropdown trong Nhóm 3 (Tiện ích)
+function toggleHeaderMenu(e) {
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  const menu = document.getElementById('header-more-dropdown');
+  if (menu) menu.classList.toggle('hidden');
+}
+
+function closeHeaderMenu() {
+  const menu = document.getElementById('header-more-dropdown');
+  if (menu) menu.classList.add('hidden');
+}
+
+document.addEventListener('click', (e) => {
+  const menu = document.getElementById('header-more-dropdown');
+  const btn = document.getElementById('btn-header-more');
+  if (menu && !menu.contains(e.target) && btn && !btn.contains(e.target)) {
+    menu.classList.add('hidden');
+  }
+});
+
 // =================================================
 // Xuất các biến và hàm điều khiển quan trọng ra window
 // =================================================
@@ -2296,6 +2344,10 @@ window.floodPoints = floodPoints;
 window.coords = coords;
 if (typeof map !== 'undefined') window.map = map;
 window.renderFloodPoints = renderFloodPoints;
+window.switchTab = switchTab;
+window.toggleHeaderMenu = toggleHeaderMenu;
+window.closeHeaderMenu = closeHeaderMenu;
+window.loadWeatherInfo = loadWeatherInfo;
 window.renderPointsList = renderPointsList;
 window.updateViewportFloodAlert = updateViewportFloodAlert;
 window.calculateRoute = calculateRoute;

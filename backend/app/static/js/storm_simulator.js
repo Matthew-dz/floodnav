@@ -147,6 +147,9 @@ const StormSimulator = (function () {
 
     const select = document.getElementById('storm-scenario-select');
     if (select) select.value = key;
+    const mobSelect = document.getElementById('mobile-storm-select');
+    if (mobSelect) mobSelect.value = key;
+
 
     const slider = document.getElementById('storm-slider');
     const val = document.getElementById('storm-slider-value');
@@ -198,6 +201,9 @@ const StormSimulator = (function () {
       if (customOpt) customOpt.remove();
       select.value = 'clear';
     }
+    const mobSelect = document.getElementById('mobile-storm-select');
+    if (mobSelect) mobSelect.value = 'clear';
+
 
     // 6.2. Đưa thanh trượt Slider về 0 mm/h
     const slider = document.getElementById('storm-slider');
