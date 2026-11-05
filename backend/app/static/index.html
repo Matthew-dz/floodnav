@@ -126,6 +126,12 @@
 
         </div>
 
+        <!-- Nút Trở về mặc định sau khi mô phỏng thời tiết (Thành viên 3 / FE-01) -->
+        <button id="btn-reset-simulator" onclick="StormSimulator.resetToDefault()" title="Trở về giao diện & dữ liệu mặc định sau khi mô phỏng thời tiết" class="p-1.5 sm:px-2.5 sm:py-1.5 bg-white/15 hover:bg-white/25 hover:border-cyan-300 border border-white/20 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition flex-shrink-0 text-white shadow-sm">
+          <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-cyan-200"></i>
+          <span class="text-xs font-medium">Mặc định</span>
+        </button>
+
 
 
         <!-- Urban Dashboard Modal Trigger (Thành viên 3) -->
@@ -555,6 +561,11 @@
               <div id="fastest-warnings" class="mt-2 text-[11px] font-medium text-rose-600"></div>
 
             </div>
+
+            <!-- Nút Xóa Lộ trình -->
+            <button type="button" onclick="clearActiveRoute()" class="w-full py-2 text-xs text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center justify-center gap-1.5 font-semibold border border-slate-200">
+              <i data-lucide="x-circle" class="w-4 h-4 text-slate-400"></i> Xóa lộ trình & Làm mới
+            </button>
 
           </div>
 

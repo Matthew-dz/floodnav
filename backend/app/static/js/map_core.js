@@ -294,6 +294,9 @@ function renderFloodPoints(data) {
   }
 
   window.floodPoints = floodPoints;
+  if (!window._initialFloodPoints && floodPoints && floodPoints.length > 0) {
+    window._initialFloodPoints = JSON.parse(JSON.stringify(floodPoints));
+  }
 
 
 
@@ -2270,3 +2273,58 @@ window.renderPointsList = renderPointsList;
 window.updateViewportFloodAlert = updateViewportFloodAlert;
 window.calculateRoute = calculateRoute;
 window.loadFloodPoints = loadFloodPoints;
+
+
+// ========================================================
+// FE: Tiện ích Toast & Điều khiển Đặt lại Mặc định
+// ========================================================
+function showToast(message, type = 'info') {
+  let toast = document.getElementById('app-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'app-toast';
+    document.body.appendChild(toast);
+  }
+  
+  const bgClass = type === 'success' ? 'bg-emerald-600 text-white shadow-emerald-500/30' :
+                  type === 'warning' ? 'bg-amber-600 text-white shadow-amber-500/30' :
+                  type === 'error' ? 'bg-rose-600 text-white shadow-rose-500/30' :
+                  'bg-slate-800 text-white shadow-slate-900/30';
+  const icon = type === 'success' ? 'check-circle' : 'info';
+
+  toast.className = `fixed bottom-6 right-6 z-[9999] px-4 py-2.5 rounded-xl shadow-2xl text-xs font-semibold flex items-center gap-2 transition-all duration-300 transform translate-y-0 opacity-100 ${bgClass} pointer-events-auto`;
+  toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4"></i><span>${message}</span>`;
+  if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.className = toast.className.replace('translate-y-0 opacity-100', 'translate-y-10 opacity-0');
+  }, 3000);
+}
+
+function clearActiveRoute() {
+  if (routeLayers.safe && map) {
+    map.removeLayer(routeLayers.safe);
+    routeLayers.safe = null;
+  }
+  if (routeLayers.fastest && map) {
+    map.removeLayer(routeLayers.fastest);
+    routeLayers.fastest = null;
+  }
+  if (window.VehicleSim && typeof VehicleSim.stop === 'function') {
+    VehicleSim.stop();
+  }
+  clearLocation('origin');
+  clearLocation('destination');
+  const resultCard = document.getElementById('route-results');
+  if (resultCard) resultCard.classList.add('hidden');
+  showToast('Đã xóa lộ trình hiện tại', 'info');
+}
+
+window.showToast = showToast;
+window.clearActiveRoute = clearActiveRoute;
+window.resetToDefaultState = function() {
+  if (window.StormSimulator && typeof StormSimulator.resetToDefault === 'function') {
+    StormSimulator.resetToDefault();
+  }
+};
