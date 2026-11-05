@@ -59,6 +59,8 @@ function initMap() {
   // Tâm bản đồ tại trung tâm khu vực nghiên cứu Hà Nội (Cầu Giấy - Đống Đa)
 
   map = L.map('map', {
+    // FE: gán map vào window
+    
 
     center: [21.020, 105.815],
 
@@ -67,6 +69,7 @@ function initMap() {
     zoomControl: true
 
   });
+  window.map = map;
 
 
 
@@ -289,6 +292,8 @@ function renderFloodPoints(data) {
     floodPoints = data;
 
   }
+
+  window.floodPoints = floodPoints;
 
 
 
@@ -2252,3 +2257,16 @@ document.addEventListener('click', (e) => {
 
 });
 
+
+
+// ========================================================
+// Xuất các biến và hàm điều khiển quan trọng ra window
+// ========================================================
+window.floodPoints = floodPoints;
+window.coords = coords;
+if (typeof map !== 'undefined') window.map = map;
+window.renderFloodPoints = renderFloodPoints;
+window.renderPointsList = renderPointsList;
+window.updateViewportFloodAlert = updateViewportFloodAlert;
+window.calculateRoute = calculateRoute;
+window.loadFloodPoints = loadFloodPoints;
