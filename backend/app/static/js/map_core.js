@@ -1652,8 +1652,6 @@ function selectActiveRoute(mode) {
   if (window.lucide) lucide.createIcons();
 }
 
-}
-
 
 
 // 9. Báo cáo ngập cộng đồng
