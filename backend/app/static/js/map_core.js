@@ -1,15 +1,13 @@
 /**
 
- * ========================================================
-
+ * =================================================
  * FloodNav - Map Controller & Core Interaction
 
  * Phụ trách: Thành viên 1 & Thành viên 2 (Hợp tác nâng cấp)
 
  * Thư viện: Leaflet 1.9.4 (BSD-2-Clause - OSI Approved)
 
- * ========================================================
-
+ * =================================================
  */
 
 
@@ -59,6 +57,8 @@ function initMap() {
   // Tâm bản đồ tại trung tâm khu vực nghiên cứu Hà Nội (Cầu Giấy - Đống Đa)
 
   map = L.map('map', {
+    // FE: gán map vào window
+    
 
     center: [21.020, 105.815],
 
@@ -67,6 +67,7 @@ function initMap() {
     zoomControl: true
 
   });
+  window.map = map;
 
 
 
@@ -297,6 +298,8 @@ function renderFloodPoints(data) {
     floodPoints = data;
 
   }
+
+  window.floodPoints = floodPoints;
 
 
 
@@ -1680,12 +1683,10 @@ function checkFirstTimeVisitor() {
 
 
 
-// ========================================================
-
+// =================================================
 // 13. TÌM KIẾM ĐỊA CHỈ & GỢI Ý ĐỊA ĐIỂM (Address Geocoding - FE-02)
 
-// ========================================================
-
+// =================================================
 let addressDebounceTimer = null;
 
 
@@ -2280,3 +2281,12 @@ async function checkPostGISConnection() {
   badge.innerHTML = '<span class="w-2 h-2 rounded-full bg-amber-400"></span>PostGIS Standby';
   badge.className = 'hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/20 border border-amber-400/30 text-amber-100 rounded-full text-[11px] font-semibold';
 }
+// =================================================// Xuất các biến và hàm điều khiển quan trọng ra window
+// =================================================window.floodPoints = floodPoints;
+window.coords = coords;
+if (typeof map !== 'undefined') window.map = map;
+window.renderFloodPoints = renderFloodPoints;
+window.renderPointsList = renderPointsList;
+window.updateViewportFloodAlert = updateViewportFloodAlert;
+window.calculateRoute = calculateRoute;
+window.loadFloodPoints = loadFloodPoints;
