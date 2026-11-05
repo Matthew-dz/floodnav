@@ -1,6 +1,9 @@
 """
 Router dự báo mực nước bằng mô hình AI (Scikit-learn Gradient Boosting).
 Phụ trách chính: Thành viên 2 (Senior Backend)
+Tích hợp:
+- Dữ liệu khí tượng lượng mưa thực tế theo thời gian từ Open-Meteo API
+- Mô hình thủy văn đô thị & hệ số trũng địa hình theo từng điểm ngập
 """
 import logging
 from pathlib import Path
@@ -9,6 +12,7 @@ import joblib
 from fastapi import APIRouter
 from ..db import pool
 from .flood_points import DEFAULT_FLOOD_POINTS
+from .weather import get_hanoi_weather
 
 log = logging.getLogger("floodnav.prediction")
 router = APIRouter(prefix="/api/predictions", tags=["Dự báo AI"])
@@ -28,11 +32,49 @@ def get_models():
         _model_60m = joblib.load(MODEL_60_PATH)
     return _model_30m, _model_60m
 
+def get_open_meteo_rainfall() -> tuple[float, float]:
+    """
+    Trích xuất lượng mưa thực tế (mm/h) từ API thời tiết Open-Meteo:
+    - rain_1h: Lượng mưa dự báo trong 1 giờ tới
+    - rain_3h: Tổng lượng mưa dự báo trong 3 giờ tới
+    """
+    try:
+        weather_data = get_hanoi_weather()
+        forecast = weather_data.get("hourly_forecast", [])
+        if forecast:
+            rain_1h = float(forecast[0].get("precipitation_mm", 0.0))
+            rain_3h = sum(float(item.get("precipitation_mm", 0.0)) for item in forecast[:3])
+            return rain_1h, rain_3h
+    except Exception as e:
+        log.warning("Không thể lấy dữ liệu lượng mưa từ Open-Meteo, dùng giá trị mặc định: %s", e)
+    return 0.0, 0.0
+
+def get_point_slope(point_name: str, threshold_cm: float) -> float:
+    """
+    Xác định hệ số độ dốc / trũng địa hình (slope/depression factor) cho từng điểm:
+    - Hầm chui: Hệ số cao nhất (~2.2) do dốc dồn nước từ 2 đầu cầu.
+    - Vùng trũng ngoại thành, ven sông Tô Lịch/Nhuệ/Đáy: ~1.8 - 2.0.
+    - Điểm trũng nội đô: ~1.4 - 1.6.
+    - Vùng cốt nền cao (Hoàn Kiếm, Tây Hồ): ~0.85 - 1.0.
+    """
+    name_lower = point_name.lower()
+    if "hầm chui" in name_lower:
+        return 2.2
+    if any(k in name_lower for k in ["đê tả bùi", "hoa bằng", "cấn hữu", "suối yến", "bến đục", "nam phương tiến", "tân triều"]):
+        return 1.9
+    if any(k in name_lower for k in ["triều khúc", "định công", "nguyễn khánh toàn", "chùa bộc", "thái hà", "nguyễn trãi", "pháp vân"]):
+        return 1.6
+    if any(k in name_lower for k in ["bờ hồ", "hoàn kiếm", "tây hồ", "quảng an"]):
+        return 0.85
+    if threshold_cm >= 25:
+        return 1.5
+    return 1.2
+
 @router.get("")
 def get_ai_predictions():
     """
-    Trả về kết quả dự báo mực nước sau 30 và 60 phút cho toàn bộ 8 điểm ngập.
-    Sử dụng mô hình Scikit-learn Gradient Boosting đã huấn luyện.
+    Trả về kết quả dự báo mực nước sau 30 và 60 phút cho toàn bộ các điểm ngập.
+    Sử dụng mô hình Scikit-learn Gradient Boosting kết hợp dữ liệu khí tượng Open-Meteo thực tế.
     """
     m30, m60 = get_models()
 
@@ -59,25 +101,37 @@ def get_ai_predictions():
             for p in DEFAULT_FLOOD_POINTS
         ]
 
+    # Lấy lượng mưa thực tế từ Open-Meteo API
+    real_rain_1h, real_rain_3h = get_open_meteo_rainfall()
+
     results = []
     for pt in points:
         d = float(pt["current_depth"])
-        # Giả định lượng mưa 1h và 3h ước tính dựa trên mực nước hiện tại
-        rain_1h = max(5.0, d * 0.8)
-        rain_3h = rain_1h * 1.5
-        slope = 1.2 # Hệ số trũng trung bình đô thị
+        slope = get_point_slope(pt["name"], float(pt["threshold_cm"]))
         
-        features = np.array([[d, rain_1h, rain_3h, slope]])
+        # Đầu vào của mô hình AI: [Mực nước hiện tại, Mưa 1h tới, Mưa dồn 3h, Hệ số trũng địa hình]
+        features = np.array([[d, real_rain_1h, real_rain_3h, slope]])
         
-        pred_30 = float(m30.predict(features)[0]) if m30 else round(d * 1.25, 1)
-        pred_60 = float(m60.predict(features)[0]) if m60 else round(d * 1.5, 1)
+        if m30:
+            pred_30 = float(m30.predict(features)[0])
+        else:
+            # Fallback thủy văn nếu chưa load được joblib
+            excess = max(0.0, real_rain_1h - 18.0) * 0.45 * slope
+            pred_30 = max(0.0, d * 0.90 + excess)
+            
+        if m60:
+            pred_60 = float(m60.predict(features)[0])
+        else:
+            excess = max(0.0, real_rain_1h - 18.0) * 0.70 * slope
+            pred_60 = max(0.0, d * 0.82 + excess)
         
         pred_30 = max(0.0, round(pred_30, 1))
         pred_60 = max(0.0, round(pred_60, 1))
 
-        # Risk score từ 0.0 đến 1.0
-        risk_30 = min(1.0, round(pred_30 / float(pt["threshold_cm"]), 2))
-        risk_60 = min(1.0, round(pred_60 / float(pt["threshold_cm"]), 2))
+        # Risk score từ 0.0 đến 1.0 chuẩn hóa theo ngưỡng ngập từng trạm
+        threshold = float(pt["threshold_cm"])
+        risk_30 = min(1.0, round(pred_30 / threshold, 2)) if threshold > 0 else 0.0
+        risk_60 = min(1.0, round(pred_60 / threshold, 2)) if threshold > 0 else 0.0
 
         results.append({
             "point_id": pt["id"],
