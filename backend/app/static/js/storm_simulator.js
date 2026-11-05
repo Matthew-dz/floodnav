@@ -6,7 +6,7 @@
  * - Dropdown kịch bản mẫu (Tạnh, Mưa, Lớn, Bão)
  * - Thanh trượt lượng mưa thời gian thực (0 - 100 mm/h)
  * - Đồng bộ hai chiều giữa Dropdown & Slider
- * - Cập nhật tức thì 75 trạm ngập, vòng lan tỏa và tái định tuyến an toàn
+ * - Cập nhật tức thì 130 trạm ngập, vòng lan tỏa và tái định tuyến an toàn
  * ========================================================
  */
 
@@ -53,7 +53,7 @@ const StormSimulator = (function () {
     return null;
   }
 
-  // 1. Cập nhật giao diện 75 trạm cục bộ tức thì (Real-time 60fps)
+  // 1. Cập nhật giao diện 130 trạm cục bộ tức thì (Real-time 60fps)
   function updateLocalPoints(mm) {
     const seq = ++requestSeq;
     const points = getFloodPoints();
@@ -81,7 +81,7 @@ const StormSimulator = (function () {
 
     if (seq !== requestSeq) return;
 
-    // Vẽ lại toàn bộ 75 marker, vòng cảnh báo, bảng điểm ngập và thông báo viewport
+    // Vẽ lại toàn bộ 130 marker, vòng cảnh báo, bảng điểm ngập và thông báo viewport
     if (typeof window.renderFloodPoints === 'function') {
       window.renderFloodPoints(points);
     } else if (typeof renderFloodPoints === 'function') {
