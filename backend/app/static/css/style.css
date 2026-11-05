@@ -320,3 +320,94 @@ body.dark-mode .floating-header {
   border-color: rgba(255, 255, 255, 0.1) !important;
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
 }
+
+/* ========================================================
+   Marker Clustering cho Điểm Ngập (FloodNav Blue & Cyan Theme)
+   ======================================================== */
+.flood-cluster-container {
+  background: transparent !important;
+  border: none !important;
+}
+
+.flood-cluster-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: #ffffff;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  position: relative;
+  box-shadow: 0 4px 14px rgba(30, 64, 175, 0.45);
+  border: 2px solid #ffffff;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+  user-select: none;
+}
+
+.flood-cluster-badge:hover {
+  transform: scale(1.15);
+  box-shadow: 0 6px 20px rgba(30, 64, 175, 0.65);
+  z-index: 1000 !important;
+}
+
+/* Nhận diện màu sắc FloodNav: Xanh dương & Xanh ngọc */
+.flood-cluster-safe {
+  background: linear-gradient(135deg, #2563eb 0%, #0284c7 50%, #06b6d4 100%);
+}
+
+/* Cụm có điểm ngập nhẹ: Viền và ánh vàng cam */
+.flood-cluster-warning {
+  background: linear-gradient(135deg, #1d4ed8 0%, #0284c7 40%, #f59e0b 100%);
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.45);
+}
+
+/* Cụm có điểm ngập nguy hiểm (≥20cm): Ánh đỏ cảnh báo */
+.flood-cluster-danger {
+  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 30%, #ef4444 100%);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.55);
+}
+
+.cluster-num {
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+/* Dấu chấm đỏ báo hiệu có điểm ngập sâu trong cụm */
+.cluster-danger-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 11px;
+  height: 11px;
+  background-color: #ef4444;
+  border: 2px solid #ffffff;
+  border-radius: 9999px;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.9);
+  animation: cluster-pulse-danger 1.8s infinite;
+}
+
+@keyframes cluster-pulse-danger {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+/* Hiệu ứng spiderfy đường nối của Leaflet MarkerCluster */
+.leaflet-cluster-spider-leg {
+  stroke: #3b82f6 !important;
+  stroke-width: 1.5 !important;
+  stroke-opacity: 0.65 !important;
+  stroke-dasharray: 4, 4 !important;
+}
+
+body.dark-mode .flood-cluster-badge {
+  border-color: #1e293b;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.65);
+}
+
+body.dark-mode .cluster-danger-dot {
+  border-color: #1e293b;
+}

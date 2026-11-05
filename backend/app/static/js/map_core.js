@@ -14,7 +14,7 @@
 
 let map = null;
 
-let floodMarkersLayer = L.layerGroup();
+let floodMarkersLayer = null;
 
 let floodCirclesLayer = L.layerGroup();
 
@@ -51,6 +51,72 @@ let floodPoints = [];
 
 
 // 1. Khởi tạo bản đồ
+
+
+/**
+ * Tạo icon cụm (MarkerCluster) theo phong cách nhận diện FloodNav (Xanh dương & Xanh ngọc)
+ * Tự động hiển thị số lượng điểm ngập trong cụm và cảnh báo nếu có điểm ngập sâu.
+ */
+function createClusterIcon(cluster) {
+  const count = cluster.getChildCount();
+  const children = cluster.getAllChildMarkers();
+
+  let hasDanger = false;
+  let hasWarning = false;
+
+  for (let i = 0; i < children.length; i++) {
+    const s = children[i].options.floodStatus;
+    const d = children[i].options.depthCm || 0;
+    if (s === 'danger' || d >= 20) {
+      hasDanger = true;
+    } else if (s === 'warning' || d >= 5) {
+      hasWarning = true;
+    }
+  }
+
+  let size = 36;
+  let clusterLevel = 'safe';
+  if (hasDanger) {
+    clusterLevel = 'danger';
+  } else if (hasWarning) {
+    clusterLevel = 'warning';
+  }
+
+  if (count >= 25) {
+    size = 46;
+  } else if (count >= 10) {
+    size = 40;
+  }
+
+  const badgeHtml = hasDanger ? '<span class="cluster-danger-dot" title="Có điểm ngập sâu trong cụm"></span>' : '';
+
+  return L.divIcon({
+    html: `
+      <div class="flood-cluster-badge flood-cluster-${clusterLevel}" style="width: ${size}px; height: ${size}px;" title="Cụm ${count} điểm ngập (nhấp để phóng to)">
+        <span class="cluster-num">${count}</span>
+        ${badgeHtml}
+      </div>
+    `,
+    className: 'flood-cluster-container',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2]
+  });
+}
+
+function syncFloodCirclesWithZoom() {
+  if (!map) return;
+  // Khi ở zoom xa (zoom < 14) các điểm được gom cụm, ẩn bớt vòng sóng nước để bản đồ thoáng đãng
+  // Khi zoom gần (zoom >= 14) tách cụm, hiển thị đầy đủ vòng bán kính sóng nước
+  if (map.getZoom() < 14) {
+    if (map.hasLayer(floodCirclesLayer)) {
+      map.removeLayer(floodCirclesLayer);
+    }
+  } else {
+    if (!map.hasLayer(floodCirclesLayer)) {
+      map.addLayer(floodCirclesLayer);
+    }
+  }
+}
 
 function initMap() {
 
@@ -196,9 +262,23 @@ function initMap() {
 
 
 
+    // Triển khai Marker Clustering cho 130 điểm ngập (Leaflet.markercluster)
+  if (typeof L.markerClusterGroup === 'function') {
+    floodMarkersLayer = L.markerClusterGroup({
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true,
+      spiderfyOnMaxZoom: true,
+      spiderfyDistanceMultiplier: 1.4,
+      maxClusterRadius: 40,
+      disableClusteringAtZoom: 16,
+      iconCreateFunction: createClusterIcon
+    });
+  } else {
+    floodMarkersLayer = L.layerGroup();
+  }
   floodCirclesLayer.addTo(map);
-
   floodMarkersLayer.addTo(map);
+  map.on('zoomend', syncFloodCirclesWithZoom);
 
 
 
@@ -213,6 +293,7 @@ function initMap() {
     updateViewportFloodAlert();
 
     renderPointsList();
+  syncFloodCirclesWithZoom();
 
   });
 
@@ -438,7 +519,12 @@ function renderFloodPoints(data) {
 
 
 
-    const marker = L.marker([lat, lng], { icon });
+    const marker = L.marker([lat, lng], {
+      icon,
+      floodStatus: status,
+      depthCm: depth,
+      thresholdCm: threshold_cm
+    });
 
     marker.bindPopup(`
 
@@ -471,6 +557,7 @@ function renderFloodPoints(data) {
     renderPointsList();
 
   updateViewportFloodAlert();
+  syncFloodCirclesWithZoom();
 
 }
 
