@@ -339,26 +339,29 @@ function initMap() {
 
 
 // 2. Tải danh sách 8 điểm ngập và vẽ lên bản đồ
-
 async function loadFloodPoints() {
+  const loadingEl = document.getElementById('summary-loading-view');
+  const errorEl = document.getElementById('summary-error-view');
+  const contentEl = document.getElementById('summary-content-view');
 
   try {
-
     const res = await fetch('/api/flood-points');
-
+    if (!res.ok) {
+      throw new Error(`Mã phản hồi HTTP: ${res.status}`);
+    }
     const geojson = await res.json();
-
     renderFloodPoints(geojson);
-
   } catch (err) {
-
     console.error('Lỗi tải danh sách điểm ngập:', err);
-
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (contentEl) contentEl.classList.add('hidden');
+    if (errorEl) {
+      errorEl.classList.remove('hidden');
+      const errP = errorEl.querySelector('p');
+      if (errP) errP.innerText = `Lỗi kết nối máy chủ: ${err.message || 'Không thể lấy dữ liệu'}.`;
+    }
   }
-
 }
-
-
 
 function formatReadingTime(isoStr) {
   if (!isoStr) return 'Chưa có bản ghi';
@@ -374,6 +377,129 @@ function formatReadingTime(isoStr) {
   } catch (e) {
     return isoStr;
   }
+}
+
+// Tính toán số liệu thống kê tình hình ngập từ dữ liệu trạm quan trắc thực tế
+function getFloodStats() {
+  const points = window.floodPoints || [];
+  if (!points || points.length === 0) {
+    return null;
+  }
+
+  let validCount = 0;
+  let safeCount = 0;
+  let warningCount = 0;
+  let dangerCount = 0;
+  let offlineCount = 0;
+  let noDataCount = 0;
+  let latestTime = null;
+
+  points.forEach(p => {
+    const hasValidDepth = (p.depth_cm !== null && p.depth_cm !== undefined && !isNaN(Number(p.depth_cm)));
+    const isOffline = p.status === 'offline';
+    const isNoData = p.status === 'no_data' || !hasValidDepth;
+    const isInvalid = p.status === 'invalid';
+
+    if (p.last_reading_at) {
+      const t = new Date(p.last_reading_at);
+      if (!isNaN(t.getTime()) && (!latestTime || t > latestTime)) {
+        latestTime = t;
+      }
+    }
+
+    if (isOffline) {
+      offlineCount++;
+    } else if (isNoData || isInvalid) {
+      noDataCount++;
+    } else {
+      validCount++;
+      const depth = Number(p.depth_cm);
+      if (depth < 5) {
+        safeCount++;
+      } else if (depth < 20) {
+        warningCount++;
+      } else {
+        dangerCount++;
+      }
+    }
+  });
+
+  return {
+    total: points.length,
+    valid: validCount,
+    safe: safeCount,
+    warning: warningCount,
+    danger: dangerCount,
+    offline: offlineCount,
+    noData: noDataCount,
+    latestTime: latestTime ? latestTime.toISOString() : null
+  };
+}
+
+// Cập nhật giao diện Tóm tắt tình hình ngập ở Sidebar (trước khi tìm đường)
+function updateSidebarFloodSummary() {
+  const loadingEl = document.getElementById('summary-loading-view');
+  const errorEl = document.getElementById('summary-error-view');
+  const contentEl = document.getElementById('summary-content-view');
+  if (!contentEl) return;
+
+  const stats = getFloodStats();
+  if (!stats) {
+    if (loadingEl) loadingEl.classList.remove('hidden');
+    contentEl.classList.add('hidden');
+    if (errorEl) errorEl.classList.add('hidden');
+    return;
+  }
+
+  if (loadingEl) loadingEl.classList.add('hidden');
+  if (errorEl) errorEl.classList.add('hidden');
+  contentEl.classList.remove('hidden');
+
+  const safeEl = document.getElementById('sum-count-safe');
+  const warnEl = document.getElementById('sum-count-warning');
+  const dangEl = document.getElementById('sum-count-danger');
+  const ratioEl = document.getElementById('sum-valid-ratio');
+  const timeEl = document.getElementById('sum-last-update');
+  const badgeEl = document.getElementById('summary-badge-status');
+  const staleNoteEl = document.getElementById('sum-stale-note');
+  const staleCountEl = document.getElementById('sum-stale-count');
+
+  if (safeEl) safeEl.innerText = stats.safe;
+  if (warnEl) warnEl.innerText = stats.warning;
+  if (dangEl) dangEl.innerText = stats.danger;
+  if (ratioEl) ratioEl.innerText = `${stats.valid} / ${stats.total} trạm`;
+
+  const staleTotal = stats.offline + stats.noData;
+  if (staleNoteEl && staleCountEl) {
+    if (staleTotal > 0) {
+      staleNoteEl.classList.remove('hidden');
+      const parts = [];
+      if (stats.offline > 0) parts.push(`${stats.offline} mất tín hiệu`);
+      if (stats.noData > 0) parts.push(`${stats.noData} chưa có DL`);
+      staleCountEl.innerText = `${staleTotal} trạm (${parts.join(', ')})`;
+    } else {
+      staleNoteEl.classList.add('hidden');
+    }
+  }
+
+  if (timeEl) {
+    timeEl.innerText = stats.latestTime ? formatReadingTime(stats.latestTime) : 'Chưa có bản ghi';
+  }
+
+  if (badgeEl) {
+    if (stats.danger > 0) {
+      badgeEl.innerText = `${stats.danger} điểm ngập sâu`;
+      badgeEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300';
+    } else if (stats.warning > 0) {
+      badgeEl.innerText = `${stats.warning} điểm chú ý`;
+      badgeEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300';
+    } else {
+      badgeEl.innerText = 'Bình thường';
+      badgeEl.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300';
+    }
+  }
+
+  if (window.lucide) lucide.createIcons();
 }
 
 function renderFloodPoints(data) {
@@ -563,10 +689,9 @@ function renderFloodPoints(data) {
 
 
     renderPointsList();
-
   updateViewportFloodAlert();
   syncFloodCirclesWithZoom();
-
+  updateSidebarFloodSummary();
 }
 
 
@@ -1266,237 +1391,266 @@ function onVehicleChange() {
 
 
 
-// 8. Vẽ lộ trình lên bản đồ
+// 8. Vẽ lộ trình lên bản đồ và quản lý tương tác chuyển đổi lộ trình
+let currentRouteData = null;
+let activeRouteMode = 'safe';
 
 function displayRouteResults(data) {
+  currentRouteData = data;
+  window.lastRouteData = data;
 
   const resultCard = document.getElementById('route-results');
+  const summaryCard = document.getElementById('flood-summary-card');
 
-  resultCard.classList.remove('hidden');
+  if (summaryCard) summaryCard.classList.add('hidden');
+  if (resultCard) resultCard.classList.remove('hidden');
 
-
-
-  // Xóa lộ trình cũ
-
-  if (routeLayers.safe) map.removeLayer(routeLayers.safe);
-
-  if (routeLayers.fastest) map.removeLayer(routeLayers.fastest);
-
-
+  // Xóa lộ trình cũ trên bản đồ
+  if (routeLayers.safe && map) {
+    map.removeLayer(routeLayers.safe);
+    routeLayers.safe = null;
+  }
+  if (routeLayers.fastest && map) {
+    map.removeLayer(routeLayers.fastest);
+    routeLayers.fastest = null;
+  }
 
   const { safe, fastest, same_route } = data;
 
-
-
-  // Lộ trình an toàn (Màu xanh đậm nét)
+  // 1. Điền thông tin cho Lộ trình An Toàn
+  const safeDistEl = document.getElementById('safe-dist');
+  const safeTimeEl = document.getElementById('safe-time');
+  const safeSafetyEl = document.getElementById('safe-safety-level');
+  const safeFloodSegsEl = document.getElementById('safe-flood-segs');
+  const safeWarnings = document.getElementById('safe-warnings');
 
   if (safe && safe.found) {
+    if (safeDistEl) safeDistEl.innerText = (safe.distance_m / 1000).toFixed(2) + ' km';
+    if (safeTimeEl) safeTimeEl.innerText = safe.duration_min.toFixed(1) + ' phút';
 
-    document.getElementById('safe-dist').innerText = (safe.distance_m / 1000).toFixed(2) + ' km';
+    const safeWarnList = safe.flood_warnings || [];
+    if (safeFloodSegsEl) safeFloodSegsEl.innerText = `${safeWarnList.length} đoạn`;
 
-    document.getElementById('safe-time').innerText = safe.duration_min.toFixed(1) + ' phút';
-
-
-
-    const safeWarnings = document.getElementById('safe-warnings');
-
-    if (safe.flood_warnings && safe.flood_warnings.length > 0) {
-
-      const warnNames = safe.flood_warnings.map(w => typeof w === 'string' ? w : (w.street || w.source || 'Mép ngập')).join(', ');
-
-      safeWarnings.innerHTML = `⚠️ Chú ý: Tuyến đi qua mép ngập nhẹ (${warnNames})`;
-
-    } else {
-
-      safeWarnings.innerHTML = `✨ Tuyến đường hoàn toàn khô ráo, không bị ngập.`;
-
+    if (safeSafetyEl) {
+      if (safeWarnList.length === 0) {
+        safeSafetyEl.innerText = 'Rất cao (Khô ráo)';
+        safeSafetyEl.className = 'text-[11px] font-bold text-emerald-700';
+      } else {
+        safeSafetyEl.innerText = 'Tương đối (Mép ngập)';
+        safeSafetyEl.className = 'text-[11px] font-bold text-teal-700';
+      }
     }
 
-
+    if (safeWarnings) {
+      if (safeWarnList.length > 0) {
+        const warnNames = safeWarnList.map(w => typeof w === 'string' ? w : (w.street || w.source || 'Mép ngập')).join(', ');
+        safeWarnings.innerHTML = `⚠️ <em>Chú ý:</em> Tuyến đi qua mép ngập nhẹ (${warnNames}) nhưng vẫn an toàn cho xe.`;
+      } else {
+        safeWarnings.innerHTML = `✨ Tuyến đường hoàn toàn khô ráo, không bị ngập.`;
+      }
+    }
 
     if (safe.geometry && safe.geometry.coordinates) {
-
       const latlngs = safe.geometry.coordinates.map(c => [c[1], c[0]]);
-
       routeLayers.safe = L.polyline(latlngs, {
-
         color: '#2563eb', // Blue-600
-
         weight: 6,
-
         opacity: 0.9,
-
         lineJoin: 'round'
-
       }).addTo(map);
-
       map.fitBounds(routeLayers.safe.getBounds(), { padding: [40, 40] });
-
-
-
-      // Mô phỏng xe chạy dọc lộ trình an toàn (vehicle_sim.js - Thành viên 3)
-
-      if (window.VehicleSim) {
-
-        const v = document.querySelector('input[name="vehicle"]:checked');
-
-        VehicleSim.start(latlngs, v ? v.value : 'motorbike');
-
-      }
-
-
-
-      // Gọi module cảnh báo âm thanh an toàn (không bao giờ làm đơ UI nếu âm thanh lỗi)
-
-      if (window.VoiceWarning) {
-
-        try {
-
-          if (typeof VoiceWarning.speakRouteResult === 'function') {
-
-            VoiceWarning.speakRouteResult(data);
-
-          } else if (typeof VoiceWarning.speakRoutePlan === 'function') {
-
-            VoiceWarning.speakRoutePlan(safe, same_route);
-
-          }
-
-        } catch (voiceErr) {
-
-          console.warn("Lỗi phát âm thanh cảnh báo:", voiceErr);
-
-        }
-
-      }
-
     }
-
   } else {
-
-    document.getElementById('safe-dist').innerText = 'Không thể đi';
-
-    document.getElementById('safe-time').innerText = 'Bị chặn';
-
-    if (window.VehicleSim) VehicleSim.stop();
-
-    document.getElementById('safe-warnings').innerText = safe.reason || 'Nước ngập quá sâu, mọi ngả đường đều bị chặn!';
-
-
-
-    if (window.VoiceWarning) {
-
-      try {
-
-        if (typeof VoiceWarning.speakRouteResult === 'function') {
-
-          VoiceWarning.speakRouteResult(data);
-
-        }
-
-      } catch (voiceErr) {
-
-        console.warn("Lỗi phát âm thanh cảnh báo:", voiceErr);
-
-      }
-
+    if (safeDistEl) safeDistEl.innerText = 'Không thể đi';
+    if (safeTimeEl) safeTimeEl.innerText = 'Bị chặn';
+    if (safeSafetyEl) {
+      safeSafetyEl.innerText = 'Không an toàn';
+      safeSafetyEl.className = 'text-[11px] font-bold text-rose-600';
     }
-
+    if (safeFloodSegsEl) safeFloodSegsEl.innerText = 'Bị chặn';
+    if (safeWarnings) safeWarnings.innerText = safe.reason || 'Nước ngập quá sâu, mọi ngả đường đều bị chặn!';
   }
 
-
-
-  // Lộ trình nhanh nhất (Nét đứt màu xám/đỏ)
+  // 2. Điền thông tin cho Lộ trình Nhanh Nhất (Gốc)
+  const fastestDistEl = document.getElementById('fastest-dist');
+  const fastestTimeEl = document.getElementById('fastest-time');
+  const fastestSafetyEl = document.getElementById('fastest-safety-level');
+  const fastestFloodSegsEl = document.getElementById('fastest-flood-segs');
+  const badge = document.getElementById('fastest-badge');
+  const warnings = document.getElementById('fastest-warnings');
 
   if (fastest && fastest.found) {
+    if (fastestDistEl) fastestDistEl.innerText = (fastest.distance_m / 1000).toFixed(2) + ' km';
+    if (fastestTimeEl) fastestTimeEl.innerText = fastest.duration_min.toFixed(1) + ' phút';
 
-    document.getElementById('fastest-dist').innerText = (fastest.distance_m / 1000).toFixed(2) + ' km';
-
-    document.getElementById('fastest-time').innerText = fastest.duration_min.toFixed(1) + ' phút';
-
-
-
-    const badge = document.getElementById('fastest-badge');
-
-    const warnings = document.getElementById('fastest-warnings');
-
-
+    const fastestWarnList = fastest.flood_warnings || [];
+    if (fastestFloodSegsEl) fastestFloodSegsEl.innerText = `${fastestWarnList.length} đoạn có nguy cơ`;
 
     if (same_route) {
-
-      badge.innerText = 'Trùng lộ trình an toàn';
-
-      badge.className = 'text-[10px] font-semibold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full';
-
-      warnings.innerText = 'Đường ngắn nhất hiện không bị ngập.';
-
-    } else {
-
-      badge.innerText = 'Bị ngập sâu!';
-
-      badge.className = 'text-[10px] font-semibold px-2 py-0.5 bg-rose-100 text-rose-800 rounded-full';
-
-      const warnNames = (fastest.flood_warnings || []).map(w => typeof w === 'string' ? w : (w.street || w.source || 'Đoạn trũng')).join(', ');
-
-      warnings.innerHTML = `⚠️ Bị ngập tại: ${warnNames || 'Đoạn trũng'}`;
-
-
-
-      const latlngs = fastest.geometry.coordinates.map(c => [c[1], c[0]]);
-
-      routeLayers.fastest = L.polyline(latlngs, {
-
-        color: '#94a3b8',
-
-        weight: 4,
-
-        opacity: 0.6,
-
-        dashArray: '8, 8'
-
-      }).addTo(map);
-
-    }
-
-  }
-
-
-
-  // Tối ưu trải nghiệm Mobile: tự động thu gọn bảng điều khiển và hiển thị thẻ tóm tắt nổi (FE-02)
-
-  if (window.innerWidth < 640) {
-
-    const card = document.getElementById('mobile-route-floating-card');
-
-    const title = document.getElementById('mobile-card-title');
-
-    const sub = document.getElementById('mobile-card-subtitle');
-
-    if (card && title && sub) {
-
-      if (safe && safe.found) {
-
-        title.innerText = same_route ? 'Lộ trình tối ưu (Không ngập)' : 'Đã tìm thấy lộ trình né ngập';
-
-        sub.innerText = `${(safe.distance_m / 1000).toFixed(1)} km • ${Math.round(safe.duration_min)} phút di chuyển`;
-
-        card.classList.remove('hidden');
-
-      } else {
-
-        title.innerText = 'Cảnh báo: Bị chặn ngập';
-
-        sub.innerText = 'Không còn đường an toàn cho xe này';
-
-        card.classList.remove('hidden');
-
+      if (badge) {
+        badge.innerText = 'Trùng lộ trình an toàn';
+        badge.className = 'text-[10px] font-semibold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full';
       }
+      if (fastestSafetyEl) {
+        fastestSafetyEl.innerText = 'An toàn (Khô ráo)';
+        fastestSafetyEl.className = 'text-[11px] font-bold text-emerald-700';
+      }
+      if (warnings) warnings.innerText = 'Đường ngắn nhất hiện không bị ngập.';
+    } else {
+      if (badge) {
+        badge.innerText = 'Bị ngập sâu!';
+        badge.className = 'text-[10px] font-semibold px-2 py-0.5 bg-rose-100 text-rose-800 rounded-full';
+      }
+      if (fastestSafetyEl) {
+        fastestSafetyEl.innerText = 'Nguy hiểm (Bị ngập)';
+        fastestSafetyEl.className = 'text-[11px] font-bold text-rose-600';
+      }
+      const warnNames = fastestWarnList.map(w => {
+        const name = typeof w === 'string' ? w : (w.street || w.source || 'Đoạn trũng');
+        const d = w.depth_cm ? ` (${w.depth_cm}cm)` : '';
+        return `${name}${d}`;
+      }).join(', ');
+      if (warnings) warnings.innerHTML = `⚠️ Bị ngập tại: ${warnNames || 'Đoạn trũng'}`;
 
+      if (fastest.geometry && fastest.geometry.coordinates) {
+        const latlngs = fastest.geometry.coordinates.map(c => [c[1], c[0]]);
+        routeLayers.fastest = L.polyline(latlngs, {
+          color: '#94a3b8',
+          weight: 4,
+          opacity: 0.6,
+          dashArray: '8, 8'
+        }).addTo(map);
+      }
+    }
+  }
+
+  // 3. Mặc định chọn tuyến An Toàn (hoặc Nhanh Nhất nếu An Toàn bị chặn)
+  if (safe && safe.found) {
+    selectActiveRoute('safe');
+  } else if (fastest && fastest.found) {
+    selectActiveRoute('fastest');
+  }
+
+  // 4. Gọi module cảnh báo âm thanh
+  if (window.VoiceWarning) {
+    try {
+      if (typeof VoiceWarning.speakRouteResult === 'function') {
+        VoiceWarning.speakRouteResult(data);
+      } else if (typeof VoiceWarning.speakRoutePlan === 'function') {
+        VoiceWarning.speakRoutePlan(safe, same_route);
+      }
+    } catch (voiceErr) {
+      console.warn("Lỗi phát âm thanh cảnh báo:", voiceErr);
+    }
+  }
+
+  // 5. Tối ưu trải nghiệm Mobile
+  if (window.innerWidth < 640) {
+    const card = document.getElementById('mobile-route-floating-card');
+    const title = document.getElementById('mobile-card-title');
+    const sub = document.getElementById('mobile-card-subtitle');
+    if (card && title && sub) {
+      if (safe && safe.found) {
+        title.innerText = same_route ? 'Lộ trình tối ưu (Không ngập)' : 'Đã tìm thấy lộ trình né ngập';
+        sub.innerText = `${(safe.distance_m / 1000).toFixed(1)} km • ${Math.round(safe.duration_min)} phút di chuyển`;
+        card.classList.remove('hidden');
+      } else {
+        title.innerText = 'Cảnh báo: Bị chặn ngập';
+        sub.innerText = 'Không còn đường an toàn cho xe này';
+        card.classList.remove('hidden');
+      }
+    }
+    toggleMobilePanel(false);
+  }
+
+  if (window.lucide) lucide.createIcons();
+}
+
+// Hàm chuyển đổi lựa chọn giữa các lộ trình (An toàn vs Nhanh nhất)
+function selectActiveRoute(mode) {
+  if (!currentRouteData) return;
+  activeRouteMode = mode;
+
+  const cardSafe = document.getElementById('card-safe-route');
+  const cardFastest = document.getElementById('card-fastest-route');
+  const badgeSafe = document.getElementById('safe-selected-badge');
+  const badgeFastest = document.getElementById('fastest-selected-badge');
+
+  const { safe, fastest, same_route } = currentRouteData;
+
+  if (mode === 'safe') {
+    if (!safe || !safe.found) {
+      showToast('Lộ trình an toàn hiện không khả dụng (đường bị chặn)', 'warning');
+      return;
     }
 
-    toggleMobilePanel(false);
+    if (cardSafe) {
+      cardSafe.classList.remove('opacity-60', 'border-slate-300');
+      cardSafe.classList.add('border-emerald-500', 'ring-2', 'ring-emerald-400', 'shadow-md');
+    }
+    if (badgeSafe) badgeSafe.classList.remove('hidden');
 
+    if (cardFastest) {
+      cardFastest.classList.remove('ring-2', 'ring-blue-400', 'border-blue-500', 'shadow-md');
+      cardFastest.classList.add('opacity-70', 'border-slate-300');
+    }
+    if (badgeFastest) badgeFastest.classList.add('hidden');
+
+    if (routeLayers.safe && map) {
+      routeLayers.safe.setStyle({ color: '#2563eb', weight: 6, opacity: 0.95 });
+      routeLayers.safe.bringToFront();
+      map.fitBounds(routeLayers.safe.getBounds(), { padding: [40, 40] });
+    }
+    if (routeLayers.fastest && map) {
+      routeLayers.fastest.setStyle({ color: '#94a3b8', weight: 3, opacity: 0.45 });
+    }
+
+    if (window.VehicleSim && safe.geometry && safe.geometry.coordinates) {
+      const latlngs = safe.geometry.coordinates.map(c => [c[1], c[0]]);
+      const v = document.querySelector('input[name="vehicle"]:checked');
+      VehicleSim.start(latlngs, v ? v.value : 'motorbike');
+    }
+  } else if (mode === 'fastest') {
+    if (!fastest || !fastest.found) {
+      showToast('Lộ trình nhanh nhất không khả dụng', 'warning');
+      return;
+    }
+
+    if (cardFastest) {
+      cardFastest.classList.remove('opacity-70', 'border-slate-300');
+      cardFastest.classList.add('border-blue-500', 'ring-2', 'ring-blue-400', 'shadow-md');
+    }
+    if (badgeFastest) badgeFastest.classList.remove('hidden');
+
+    if (cardSafe) {
+      cardSafe.classList.remove('ring-2', 'ring-emerald-400', 'border-emerald-500', 'shadow-md');
+      cardSafe.classList.add('opacity-70', 'border-slate-300');
+    }
+    if (badgeSafe) badgeSafe.classList.add('hidden');
+
+    if (routeLayers.fastest && map) {
+      routeLayers.fastest.setStyle({
+        color: same_route ? '#2563eb' : '#dc2626',
+        weight: 6,
+        opacity: 0.95,
+        dashArray: same_route ? null : '6, 6'
+      });
+      routeLayers.fastest.bringToFront();
+      map.fitBounds(routeLayers.fastest.getBounds(), { padding: [40, 40] });
+    }
+    if (routeLayers.safe && map) {
+      routeLayers.safe.setStyle({ color: '#2563eb', weight: 3, opacity: 0.35 });
+    }
+
+    if (window.VehicleSim && fastest.geometry && fastest.geometry.coordinates) {
+      const latlngs = fastest.geometry.coordinates.map(c => [c[1], c[0]]);
+      const v = document.querySelector('input[name="vehicle"]:checked');
+      VehicleSim.start(latlngs, v ? v.value : 'motorbike');
+    }
   }
+
+  if (window.lucide) lucide.createIcons();
+}
 
 }
 
@@ -2395,13 +2549,22 @@ function clearActiveRoute() {
   }
   clearLocation('origin');
   clearLocation('destination');
+  currentRouteData = null;
+
   const resultCard = document.getElementById('route-results');
   if (resultCard) resultCard.classList.add('hidden');
-  showToast('Đã xóa lộ trình hiện tại', 'info');
+
+  const summaryCard = document.getElementById('flood-summary-card');
+  if (summaryCard) summaryCard.classList.remove('hidden');
+
+  updateSidebarFloodSummary();
+  showToast('Đã xóa lộ trình & xem lại tình hình ngập', 'info');
 }
 
 window.showToast = showToast;
 window.clearActiveRoute = clearActiveRoute;
+window.selectActiveRoute = selectActiveRoute;
+window.updateSidebarFloodSummary = updateSidebarFloodSummary;
 window.resetToDefaultState = function() {
   if (window.StormSimulator && typeof StormSimulator.resetToDefault === 'function') {
     StormSimulator.resetToDefault();

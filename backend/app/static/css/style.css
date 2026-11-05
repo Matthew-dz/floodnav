@@ -438,3 +438,45 @@ body.dark-mode #header-more-dropdown button:hover {
   background-color: #1e293b !important;
 }
 
+/* Dark Mode cho Thẻ Tóm tắt ngập & Thẻ kết quả lộ trình trong Sidebar */
+body.dark-mode #flood-summary-card h3,
+body.dark-mode #route-results h3 {
+  color: #f1f5f9 !important;
+}
+body.dark-mode #summary-loading-view {
+  background-color: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #94a3b8 !important;
+}
+body.dark-mode #summary-content-view .bg-slate-50 {
+  background-color: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #cbd5e1 !important;
+}
+body.dark-mode #summary-content-view .bg-cyan-50\/70 {
+  background-color: rgba(8, 51, 68, 0.4) !important;
+  border-color: rgba(6, 182, 212, 0.3) !important;
+  color: #a5f3fc !important;
+}
+body.dark-mode #card-safe-route {
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.4), rgba(15, 118, 110, 0.3)) !important;
+  border-color: #059669 !important;
+}
+body.dark-mode #card-safe-route span.text-slate-900 {
+  color: #ffffff !important;
+}
+body.dark-mode #card-safe-route span.text-slate-500 {
+  color: #94a3b8 !important;
+}
+body.dark-mode #card-fastest-route {
+  background-color: #0f172a !important;
+  border-color: #1e293b !important;
+}
+body.dark-mode #card-fastest-route span.text-slate-900 {
+  color: #ffffff !important;
+}
+body.dark-mode #card-fastest-route span.text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+
