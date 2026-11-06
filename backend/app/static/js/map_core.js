@@ -708,6 +708,76 @@ function handlePopupOpen(e) {
   }
 }
 
+// ============================================================================
+// KHU VỰC DỰ ĐOÁN THỜI GIAN NƯỚC RÚT & XU HƯỚNG MỰC NƯỚC
+// ============================================================================
+function renderDrainageForecastHtml(fp) {
+  // Kiểm tra nếu trạm có dữ liệu thời gian nước rút và xu hướng từ API (khi backend hỗ trợ)
+  const trend = (fp && fp.water_trend) ? fp.water_trend : null;
+  const drainTime = (fp && fp.estimated_drainage_time) ? fp.estimated_drainage_time : null;
+
+  let trendLabel = 'Chưa xác định';
+  let trendClass = 'text-slate-700';
+  let trendDot = 'bg-slate-400';
+
+  if (trend === 'rising') {
+    trendLabel = 'Đang tăng';
+    trendClass = 'text-rose-600';
+    trendDot = 'bg-rose-500';
+  } else if (trend === 'falling') {
+    trendLabel = 'Đang giảm';
+    trendClass = 'text-cyan-600';
+    trendDot = 'bg-cyan-500';
+  } else if (trend === 'stable') {
+    trendLabel = 'Ổn định';
+    trendClass = 'text-emerald-600';
+    trendDot = 'bg-emerald-500';
+  }
+
+  const drainTimeDisplay = drainTime || 'Chưa đủ dữ liệu để dự đoán';
+  const isSupported = Boolean(trend || drainTime);
+  const statusBadge = isSupported 
+    ? '<span class="text-[9px] font-semibold text-cyan-700 bg-cyan-100/70 px-1.5 py-0.2 rounded border border-cyan-200">Đã cập nhật</span>'
+    : '<span class="text-[9px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">Chưa hỗ trợ API</span>';
+
+  return `
+    <div class="bg-slate-50/90 rounded-lg p-2 border border-slate-200">
+      <div class="flex items-center justify-between pb-1.5 border-b border-slate-200/70">
+        <div class="flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 text-cyan-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+          </svg>
+          <span class="text-[10px] font-bold text-slate-800 tracking-wider uppercase">Dự đoán nước rút</span>
+        </div>
+        ${statusBadge}
+      </div>
+
+      <div class="grid grid-cols-2 gap-1.5 mt-1.5">
+        <!-- Xu hướng mực nước -->
+        <div class="bg-white rounded p-1.5 border border-slate-200/80 shadow-2xs">
+          <span class="text-[10px] text-slate-500 font-medium block">Xu hướng mực nước</span>
+          <div class="mt-1 flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full ${trendDot} flex-shrink-0"></span>
+            <span class="text-xs font-bold ${trendClass}">${trendLabel}</span>
+          </div>
+          <p class="text-[9px] text-slate-400 mt-0.5 leading-tight">${isSupported ? '' : 'Cần chuỗi đo lịch sử'}</p>
+        </div>
+
+        <!-- Thời gian nước rút dự kiến -->
+        <div class="bg-white rounded p-1.5 border border-slate-200/80 shadow-2xs">
+          <span class="text-[10px] text-slate-500 font-medium block">Thời gian nước rút</span>
+          <div class="mt-1">
+            <span class="text-[11px] font-bold ${drainTime ? 'text-cyan-700 font-mono' : 'text-slate-600'} block leading-tight">
+              ${drainTimeDisplay}
+            </span>
+          </div>
+          <p class="text-[9px] text-slate-400 mt-0.5 leading-tight">${isSupported ? '' : 'Chưa có mô hình tính'}</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderFloodPoints(data) {
   if (data && data.features) {
     floodPoints = data.features.map(f => ({
@@ -982,8 +1052,10 @@ function renderFloodPoints(data) {
       aiInitialHtml = renderAiLoadingHtml();
     }
 
+    const drainageHtml = renderDrainageForecastHtml(fp);
+
     marker.bindPopup(`
-      <div class="text-xs space-y-2 p-1 min-w-[250px] max-w-[280px]">
+      <div class="text-xs space-y-1.5 p-1 min-w-[250px] max-w-[280px]">
         <!-- Header: Tên trạm & Badge mức độ nguy hiểm -->
         <div class="border-b border-slate-100 pb-1.5">
           <div class="flex items-start justify-between gap-1.5">
@@ -1016,6 +1088,11 @@ function renderFloodPoints(data) {
         <!-- Khu vực dự đoán ngập bằng AI (30 phút & 60 phút) -->
         <div id="popup-ai-forecast-${id}" data-ai-point-id="${id}" data-threshold="${threshold_cm}">
           ${aiInitialHtml}
+        </div>
+
+        <!-- Khu vực dự đoán nước rút (Xu hướng & Thời gian rút) -->
+        <div id="popup-drainage-forecast-${id}">
+          ${drainageHtml}
         </div>
 
         <!-- Nút thao tác nhanh lộ trình -->
