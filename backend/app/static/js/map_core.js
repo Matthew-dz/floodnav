@@ -326,6 +326,8 @@ function initMap() {
   loadFloodPoints();
   checkPostGISConnection();
   loadWeatherInfo();
+  fetchAiPredictions(); // Nạp dự báo AI vào cache nền tránh spam API
+  map.on('popupopen', handlePopupOpen);
 
 
 
@@ -506,6 +508,204 @@ function updateSidebarFloodSummary() {
   }
 
   if (window.lucide) lucide.createIcons();
+}
+
+// ============================================================================
+// KHU VỰC QUẢN LÝ DỰ ĐOÁN NGẬP BẰNG AI (Router /api/predictions)
+// ============================================================================
+let aiPredictionsCache = null;
+let aiPredictionsLoading = false;
+let aiPredictionsError = false;
+
+// Đánh giá mức độ rủi ro theo tiêu chuẩn màu sắc và ngưỡng ngập của FloodNav
+function getRiskBadge(depth, riskScore, exceedsThreshold) {
+  if (exceedsThreshold || depth >= 20 || riskScore >= 0.7) {
+    return {
+      label: 'Nguy hiểm',
+      colorClass: 'text-rose-600',
+      badgeClass: 'bg-rose-100 text-rose-800 border-rose-200'
+    };
+  } else if (depth >= 5 || riskScore >= 0.25) {
+    return {
+      label: 'Chú ý',
+      colorClass: 'text-amber-600',
+      badgeClass: 'bg-amber-100 text-amber-800 border-amber-200'
+    };
+  } else {
+    return {
+      label: 'An toàn',
+      colorClass: 'text-emerald-600',
+      badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-200'
+    };
+  }
+}
+
+function renderAiLoadingHtml() {
+  return `
+    <div class="bg-indigo-50/60 rounded-lg p-2 border border-indigo-100 text-[10px]">
+      <div class="flex items-center justify-between text-indigo-900 font-bold">
+        <span class="flex items-center gap-1">
+          <svg class="w-3.5 h-3.5 text-indigo-600 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
+          DỰ ĐOÁN NGẬP BẰNG AI
+        </span>
+        <span class="text-[9px] text-indigo-600 font-normal">Đang nạp...</span>
+      </div>
+    </div>
+  `;
+}
+
+function renderAiErrorHtml() {
+  return `
+    <div class="bg-rose-50/70 rounded-lg p-2 border border-rose-200 text-[10px]">
+      <div class="flex items-center justify-between text-rose-900 font-bold mb-1">
+        <span class="flex items-center gap-1">
+          <svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+          DỰ ĐOÁN NGẬP BẰNG AI
+        </span>
+        <span class="text-[9px] text-rose-600 bg-rose-100 px-1.5 py-0.2 rounded border border-rose-200">Lỗi nạp</span>
+      </div>
+      <p class="text-[10px] text-rose-700">Không thể tải dữ liệu dự đoán</p>
+    </div>
+  `;
+}
+
+function renderAiForecastHtml(pred, threshold_cm) {
+  if (!pred || !pred.forecast_30m || !pred.forecast_60m) {
+    return `
+      <div class="bg-slate-50 rounded-lg p-2 border border-slate-200 text-[10px]">
+        <div class="flex items-center justify-between text-slate-700 font-bold mb-1">
+          <span class="flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+            DỰ ĐOÁN NGẬP BẰNG AI
+          </span>
+          <span class="text-[9px] text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">Chưa có kết quả</span>
+        </div>
+        <p class="text-[10px] text-slate-500 italic">Chưa có dữ liệu dự đoán</p>
+      </div>
+    `;
+  }
+
+  const f30 = pred.forecast_30m;
+  const f60 = pred.forecast_60m;
+  const risk30 = getRiskBadge(f30.predicted_depth_cm, f30.risk_score, f30.exceeds_threshold);
+  const risk60 = getRiskBadge(f60.predicted_depth_cm, f60.risk_score, f60.exceeds_threshold);
+
+  return `
+    <div class="bg-indigo-50/70 rounded-lg p-2 border border-indigo-100">
+      <div class="flex items-center justify-between pb-1.5 border-b border-indigo-100/80">
+        <div class="flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 text-indigo-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+          </svg>
+          <span class="text-[10px] font-bold text-indigo-900 tracking-wider uppercase">Dự đoán ngập bằng AI</span>
+        </div>
+        <span class="text-[9px] font-semibold text-indigo-600 bg-indigo-100/70 px-1.5 py-0.2 rounded border border-indigo-200">
+          Đã cập nhật
+        </span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-1.5 mt-1.5">
+        <!-- Cột 30 phút -->
+        <div class="bg-white/95 rounded p-1.5 border border-indigo-100/80 text-center shadow-2xs">
+          <span class="text-[10px] text-slate-500 font-medium block">Sau 30 phút</span>
+          <div class="flex items-baseline justify-center gap-0.5 my-0.5">
+            <span class="text-base font-black ${risk30.colorClass}">${f30.predicted_depth_cm}</span>
+            <span class="text-[10px] font-bold text-slate-500">cm</span>
+          </div>
+          <div class="inline-block px-1.5 py-0.2 rounded text-[9px] font-bold border ${risk30.badgeClass}">
+            ${risk30.label}
+          </div>
+          <div class="text-[9px] text-slate-400 mt-0.5">Chỉ số rủi ro: ${Number(f30.risk_score).toFixed(2)}</div>
+        </div>
+
+        <!-- Cột 60 phút -->
+        <div class="bg-white/95 rounded p-1.5 border border-indigo-100/80 text-center shadow-2xs">
+          <span class="text-[10px] text-slate-500 font-medium block">Sau 60 phút</span>
+          <div class="flex items-baseline justify-center gap-0.5 my-0.5">
+            <span class="text-base font-black ${risk60.colorClass}">${f60.predicted_depth_cm}</span>
+            <span class="text-[10px] font-bold text-slate-500">cm</span>
+          </div>
+          <div class="inline-block px-1.5 py-0.2 rounded text-[9px] font-bold border ${risk60.badgeClass}">
+            ${risk60.label}
+          </div>
+          <div class="text-[9px] text-slate-400 mt-0.5">Chỉ số rủi ro: ${Number(f60.risk_score).toFixed(2)}</div>
+        </div>
+      </div>
+
+      <p class="text-[9px] text-indigo-600/80 mt-1.5 text-center leading-tight">
+        * Dự báo xu thế theo mô hình thủy văn & lượng mưa Open-Meteo
+      </p>
+    </div>
+  `;
+}
+
+function updateOpenPopupAi() {
+  const containers = document.querySelectorAll('[data-ai-point-id]');
+  containers.forEach(el => {
+    const pointId = parseInt(el.getAttribute('data-ai-point-id'), 10);
+    const threshold = parseFloat(el.getAttribute('data-threshold')) || 20;
+    if (aiPredictionsError) {
+      el.innerHTML = renderAiErrorHtml();
+    } else if (aiPredictionsCache) {
+      const pred = aiPredictionsCache[pointId];
+      el.innerHTML = renderAiForecastHtml(pred, threshold);
+    }
+  });
+}
+
+async function fetchAiPredictions() {
+  if (aiPredictionsCache !== null) return aiPredictionsCache;
+  if (aiPredictionsLoading) return;
+  aiPredictionsLoading = true;
+  aiPredictionsError = false;
+
+  try {
+    const res = await fetch('/api/predictions');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      aiPredictionsCache = {};
+      data.forEach(item => {
+        if (item && item.point_id !== undefined) {
+          aiPredictionsCache[item.point_id] = item;
+        }
+      });
+      aiPredictionsError = false;
+    } else {
+      aiPredictionsCache = {};
+    }
+    updateOpenPopupAi();
+    return aiPredictionsCache;
+  } catch (err) {
+    console.warn("Lỗi tải dữ liệu dự đoán AI:", err);
+    aiPredictionsError = true;
+    updateOpenPopupAi();
+    return null;
+  } finally {
+    aiPredictionsLoading = false;
+  }
+}
+
+function handlePopupOpen(e) {
+  const popup = e.popup;
+  if (!popup) return;
+  const el = popup.getElement();
+  if (!el) return;
+  const aiContainer = el.querySelector('[data-ai-point-id]');
+  if (!aiContainer) return;
+
+  const pointId = parseInt(aiContainer.getAttribute('data-ai-point-id'), 10);
+  const threshold = parseFloat(aiContainer.getAttribute('data-threshold')) || 20;
+
+  if (aiPredictionsCache) {
+    const pred = aiPredictionsCache[pointId];
+    aiContainer.innerHTML = renderAiForecastHtml(pred, threshold);
+  } else if (aiPredictionsError) {
+    aiContainer.innerHTML = renderAiErrorHtml();
+  } else if (!aiPredictionsLoading) {
+    aiContainer.innerHTML = renderAiLoadingHtml();
+    fetchAiPredictions();
+  }
 }
 
 function renderFloodPoints(data) {
@@ -772,8 +972,18 @@ function renderFloodPoints(data) {
       `;
     }
 
+    const cachedAi = aiPredictionsCache ? aiPredictionsCache[id] : null;
+    let aiInitialHtml = '';
+    if (aiPredictionsError) {
+      aiInitialHtml = renderAiErrorHtml();
+    } else if (cachedAi) {
+      aiInitialHtml = renderAiForecastHtml(cachedAi, threshold_cm);
+    } else {
+      aiInitialHtml = renderAiLoadingHtml();
+    }
+
     marker.bindPopup(`
-      <div class="text-xs space-y-2 p-1 min-w-[230px] max-w-[260px]">
+      <div class="text-xs space-y-2 p-1 min-w-[250px] max-w-[280px]">
         <!-- Header: Tên trạm & Badge mức độ nguy hiểm -->
         <div class="border-b border-slate-100 pb-1.5">
           <div class="flex items-start justify-between gap-1.5">
@@ -801,6 +1011,11 @@ function renderFloodPoints(data) {
             <span class="text-slate-500">Nguồn dữ liệu:</span>
             <span class="font-medium text-cyan-800 bg-cyan-50 px-1.5 py-0.5 rounded border border-cyan-100 text-[10px]">${sourceDisplay}</span>
           </div>
+        </div>
+
+        <!-- Khu vực dự đoán ngập bằng AI (30 phút & 60 phút) -->
+        <div id="popup-ai-forecast-${id}" data-ai-point-id="${id}" data-threshold="${threshold_cm}">
+          ${aiInitialHtml}
         </div>
 
         <!-- Nút thao tác nhanh lộ trình -->
