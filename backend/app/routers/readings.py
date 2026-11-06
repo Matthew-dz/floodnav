@@ -8,12 +8,13 @@ from fastapi import APIRouter, HTTPException, Query
 from ..db import pool
 from ..schemas import ReadingCreate
 from .flood_points import DEFAULT_FLOOD_POINTS
+from ..fallback_storage import save_fallback_reading, get_fallback_readings
 
 log = logging.getLogger("floodnav.readings")
 router = APIRouter(prefix="/api/readings", tags=["Số đo mực nước"])
 
 # Bộ nhớ tạm in-memory khi chạy trên môi trường Serverless (Vercel) không có PostgreSQL
-_IN_MEMORY_READINGS = []
+# Dữ liệu quan trắc dự phòng được chuyển sang lưu trữ bền vững tại fallback_storage.db
 
 
 @router.post("", status_code=201)
@@ -42,6 +43,8 @@ def create_reading(body: ReadingCreate):
         row["depth_cm"] = float(row["depth_cm"])
         row["exceeds_threshold"] = row["depth_cm"] >= point["threshold_cm"]
         return row
+    except HTTPException:
+        raise
     except Exception as e:
         log.warning("DB query failed in create_reading, using in-memory fallback: %s", e)
         # Fallback in-memory cho Vercel Serverless
@@ -55,20 +58,17 @@ def create_reading(body: ReadingCreate):
                 break
 
         if target_pt is None:
-            # Mặc định gán vào điểm 1 nếu không khớp
-            target_pt = DEFAULT_FLOOD_POINTS[0]
+            raise HTTPException(404, "Không tìm thấy điểm ngập tương ứng")
 
-        target_pt["depth_cm"] = float(body.depth_cm)
-        rec = {
-            "id": len(_IN_MEMORY_READINGS) + 1,
-            "point_id": target_pt["id"],
-            "depth_cm": float(body.depth_cm),
-            "source": body.source,
-            "recorded_at": datetime.now(timezone.utc).isoformat(),
-            "exceeds_threshold": float(body.depth_cm) >= target_pt["threshold_cm"]
-        }
-        _IN_MEMORY_READINGS.insert(0, rec)
-        return rec
+
+        # Tách biệt dữ liệu quan trắc khỏi dữ liệu mặc định: KHÔNG sửa target_pt
+        return save_fallback_reading(
+            point_id=target_pt["id"],
+            sensor_id=target_pt.get("sensor_id"),
+            depth_cm=float(body.depth_cm),
+            source=body.source,
+            threshold_cm=float(target_pt["threshold_cm"])
+        )
 
 
 
@@ -106,7 +106,4 @@ def list_readings(
         return rows
     except Exception as e:
         log.warning("DB query failed in list_readings, using in-memory fallback: %s", e)
-        res = _IN_MEMORY_READINGS
-        if point_id is not None:
-            res = [r for r in res if r["point_id"] == point_id]
-        return res[:limit]
+        return get_fallback_readings(point_id=point_id, limit=limit)

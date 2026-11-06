@@ -6,6 +6,7 @@ import threading
 import geopandas as gpd
 import numpy as np
 import osmnx as ox
+from shapely.geometry import Point
 
 from . import config
 from .db import pool
@@ -39,13 +40,64 @@ class RoadGraph:
         i = int(d2.argmin())
         return int(self.node_ids[i]), math.sqrt(float(d2[i])) * 111_320
 
+    def snap_to_edge(self, lng: float, lat: float):
+        """
+        Tìm cạnh (đoạn đường / ngõ) gần nhất và vị trí tiếp cận chính xác trên mặt đường:
+        - Sử dụng R-tree spatial index (self.edges_m.sindex) trong hệ toạ độ mét.
+        - Chiếu điểm lên cạnh để lấy toạ độ tiếp cận thực tế (projected point) và hai nút giao đầu mút.
+        """
+        try:
+            pt_m = gpd.GeoSeries([Point(lng, lat)], crs=4326).to_crs(config.METRIC_CRS)[0]
+            hits = self.edges_m.sindex.nearest(pt_m)
+            edge_idx = int(hits[1][0]) if len(hits) == 2 else int(hits[0])
+            edge_row = self.edges_m.iloc[edge_idx]
+            u, v, k = self.edge_keys[edge_idx]
+            dist_m = float(edge_row.geometry.distance(pt_m))
+
+            edge_geom_m = edge_row.geometry
+            proj_dist_m = edge_geom_m.project(pt_m)
+            proj_pt_m = edge_geom_m.interpolate(proj_dist_m)
+            proj_pt_4326 = gpd.GeoSeries([proj_pt_m], crs=config.METRIC_CRS).to_crs(4326)[0]
+            proj_pt = [round(float(proj_pt_4326.x), 6), round(float(proj_pt_4326.y), 6)]
+
+            length_m = edge_geom_m.length
+            ratio = (proj_dist_m / length_m) if length_m > 0 else 0.5
+            closer_node = u if ratio < 0.5 else v
+
+            return {
+                "u": u,
+                "v": v,
+                "key": k,
+                "closer_node": closer_node,
+                "dist_m": dist_m,
+                "proj_pt": proj_pt,
+                "ratio": ratio,
+                "name": edge_row.get("name"),
+            }
+        except Exception as e:
+            log.warning("Lỗi snap_to_edge: %s. Dùng fallback nearest_node.", e)
+            n, d = self.nearest_node(lng, lat)
+            node_x = self.G.nodes[n]["x"]
+            node_y = self.G.nodes[n]["y"]
+            return {
+                "u": n,
+                "v": n,
+                "key": 0,
+                "closer_node": n,
+                "dist_m": d,
+                "proj_pt": [round(node_x, 6), round(node_y, 6)],
+                "ratio": 0.0,
+                "name": "Nút giao",
+            }
+
     def flood_edges(self, sources: list) -> dict:
         """
         sources: [{lng, lat, depth_cm, threshold_cm, name, kind, source_id}, ...]
         Trả về {(u, v, key): thông tin ngập} cho các đoạn đường nằm trong bán kính ảnh hưởng.
         Đoạn đường chịu nhiều nguồn thì lấy nguồn ngập sâu nhất.
         """
-        usable = [s for s in sources if s["depth_cm"] >= config.PENALTY_START_CM]
+        usable = [s for s in sources if s.get("depth_cm") is not None and s["depth_cm"] >= config.PENALTY_START_CM]
+
         result = {}
         if not usable:
             return result
@@ -111,9 +163,10 @@ def fetch_flood_sources(use_ai_prediction: bool = False) -> list:
             reports = conn.execute(REPORTS_SQL).fetchall()
     except Exception as e:
         log.warning("DB query failed in fetch_flood_sources, using fallback: %s", e)
-        from .routers.flood_points import DEFAULT_FLOOD_POINTS
-        points = DEFAULT_FLOOD_POINTS
-        reports = []
+        from .routers.flood_points import get_fallback_flood_points
+        from .fallback_storage import get_fallback_reports
+        points = get_fallback_flood_points()
+        reports = get_fallback_reports(only_confirmed=True)
 
     ai_model = None
     if use_ai_prediction:
@@ -126,6 +179,8 @@ def fetch_flood_sources(use_ai_prediction: bool = False) -> list:
 
     sources = []
     for p in points:
+        if p.get("depth_cm") is None:
+            continue
         d = float(p["depth_cm"])
         predicted_d = d
         if ai_model is not None and d >= 5.0:

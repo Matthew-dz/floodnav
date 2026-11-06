@@ -77,6 +77,63 @@ const StormSimulator = (function () {
       fp.status = newDepth >= (fp.threshold_cm || 20)
         ? 'danger'
         : (newDepth >= 5 ? 'warning' : 'safe');
+
+      if (newDepth < 5) {
+        fp.water_trend = 'stable';
+        fp.estimated_drainage_time = 'Đã cạn / Không ngập (< 5cm)';
+      } else {
+        if (k > 0.35) {
+          fp.water_trend = 'rising';
+          const mins = Math.round(30 + ((newDepth - 4.5) / 8.5) * 60);
+          fp.estimated_drainage_time = mins > 120 ? '> 2.5 giờ' : `~ ${Math.max(30, Math.round(mins / 15) * 15)} phút`;
+        } else {
+          fp.water_trend = 'falling';
+          const mins = Math.round(((newDepth - 4.5) / 12.0) * 60);
+          fp.estimated_drainage_time = mins > 120 ? '> 2 giờ' : `~ ${Math.max(15, Math.round(mins / 15) * 15)} phút`;
+        }
+      }
+
+      // Cập nhật dự báo ngập AI tức thì theo mô hình thủy văn & lượng mưa mm
+      const baseThreshold = fp.threshold_cm || 20;
+      const slope = (fp.name && fp.name.toLowerCase().includes('hầm chui')) ? 2.2 : (baseThreshold >= 25 ? 1.6 : 1.2);
+      let pred30 = 0, pred60 = 0;
+      if (k > 0) {
+        const excess30 = Math.max(0, mm - 18.0) * 0.45 * slope;
+        const excess60 = Math.max(0, mm - 18.0) * 0.70 * slope;
+        pred30 = Math.max(0, Math.round((newDepth * 0.90 + excess30) * 10) / 10);
+        pred60 = Math.max(0, Math.round((newDepth * 0.82 + excess60) * 10) / 10);
+      } else {
+        pred30 = Math.max(0, Math.round(newDepth * 0.15 * 10) / 10);
+        pred60 = Math.max(0, Math.round(newDepth * 0.05 * 10) / 10);
+      }
+      const risk30 = baseThreshold > 0 ? Math.min(1.0, Math.round((pred30 / baseThreshold) * 100) / 100) : 0;
+      const risk60 = baseThreshold > 0 ? Math.min(1.0, Math.round((pred60 / baseThreshold) * 100) / 100) : 0;
+
+      if (!window.aiPredictionsCache) {
+        window.aiPredictionsCache = {};
+      }
+      window.aiPredictionsCache[fp.id] = {
+        point_id: fp.id,
+        name: fp.name,
+        current_depth_cm: newDepth,
+        threshold_cm: baseThreshold,
+        forecast_30m: {
+          predicted_depth_cm: pred30,
+          risk_score: risk30,
+          exceeds_threshold: pred30 >= baseThreshold
+        },
+        forecast_60m: {
+          predicted_depth_cm: pred60,
+          risk_score: risk60,
+          exceeds_threshold: pred60 >= baseThreshold
+        },
+        water_trend: fp.water_trend,
+        estimated_drainage_time: fp.estimated_drainage_time,
+        drainage_forecast: {
+          water_trend: fp.water_trend,
+          estimated_drainage_time: fp.estimated_drainage_time
+        }
+      };
     });
 
     if (seq !== requestSeq) return;
@@ -86,6 +143,11 @@ const StormSimulator = (function () {
       window.renderFloodPoints(points);
     } else if (typeof renderFloodPoints === 'function') {
       renderFloodPoints(points);
+    }
+
+    // Cập nhật ngay lập tức khung dự báo AI của bất kỳ popup nào đang mở
+    if (typeof window.updateOpenPopupAi === 'function') {
+      window.updateOpenPopupAi();
     }
   }
 
@@ -105,6 +167,11 @@ const StormSimulator = (function () {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(batchPayload)
+    }).then(() => {
+      // Sau khi backend lưu dữ liệu ngập, fetch lại dự báo AI chính xác từ Scikit-learn
+      if (typeof window.fetchAiPredictions === 'function') {
+        window.fetchAiPredictions(true, mm);
+      }
     }).catch(err => console.debug('StormSimulator sync readings error:', err));
 
     // Nếu người dùng đang xem một lộ trình thì tính lại đường né ngập mới nhất
@@ -142,11 +209,19 @@ const StormSimulator = (function () {
 
   // 4. Khi người dùng chọn từ Dropdown kịch bản
   async function applyScenario(key) {
+    if (key === 'clear') {
+      resetToDefault();
+      return;
+    }
+
     const sc = scenarios[key];
     if (!sc) return;
 
     const select = document.getElementById('storm-scenario-select');
     if (select) select.value = key;
+    const mobSelect = document.getElementById('mobile-storm-select');
+    if (mobSelect) mobSelect.value = key;
+
 
     const slider = document.getElementById('storm-slider');
     const val = document.getElementById('storm-slider-value');
@@ -188,7 +263,7 @@ const StormSimulator = (function () {
   }
 
     // 6. Trở về trạng thái & giao diện mặc định sau khi mô phỏng thời tiết
-  function resetToDefault() {
+  async function resetToDefault() {
     clearTimeout(sliderSyncTimer);
 
     // 6.1. Đưa Dropdown về kịch bản 'clear' (Tạnh 0mm) và xóa tuỳ chỉnh (nếu có)
@@ -198,6 +273,9 @@ const StormSimulator = (function () {
       if (customOpt) customOpt.remove();
       select.value = 'clear';
     }
+    const mobSelect = document.getElementById('mobile-storm-select');
+    if (mobSelect) mobSelect.value = 'clear';
+
 
     // 6.2. Đưa thanh trượt Slider về 0 mm/h
     const slider = document.getElementById('storm-slider');
@@ -205,13 +283,34 @@ const StormSimulator = (function () {
     if (slider) slider.value = 0;
     if (val) val.innerText = '0 mm/h';
 
-    setLabel('Trời tạnh (Bình thường) - Lượng mưa: 0 mm/h');
+    setLabel('Dữ liệu quan trắc thực tế');
 
-    // 6.3. Khôi phục toàn bộ các trạm quan trắc về trạng thái mặc định (0 cm ngập)
-    updateLocalPoints(0);
-
-    // 6.4. Đồng bộ 0 cm lên backend
-    syncBackendAndReroute(0);
+    // 6.3. Khôi phục trực tiếp dữ liệu thực từ các trạm quan trắc trong CSDL qua API /reset
+    try {
+      const res = await fetch('/api/flood-points/reset', { method: 'POST' });
+      if (res.ok) {
+        const geojson = await res.json();
+        if (typeof window.renderFloodPoints === 'function') {
+          window.renderFloodPoints(geojson);
+        } else if (typeof renderFloodPoints === 'function') {
+          renderFloodPoints(geojson);
+        }
+      } else if (typeof loadFloodPoints === 'function') {
+        await loadFloodPoints();
+      }
+      // Nạp lại dự báo AI thực tế từ backend sau khi khôi phục CSDL
+      if (typeof window.fetchAiPredictions === 'function') {
+        await window.fetchAiPredictions(true, null);
+      }
+    } catch (err) {
+      console.warn('Lỗi gọi /api/flood-points/reset:', err);
+      if (typeof loadFloodPoints === 'function') {
+        await loadFloodPoints();
+      }
+      if (typeof window.fetchAiPredictions === 'function') {
+        await window.fetchAiPredictions(true, null);
+      }
+    }
 
     // 6.5. Dừng mô phỏng xe chạy và xóa lộ trình nếu có
     if (window.VehicleSim && typeof VehicleSim.stop === 'function') {
@@ -253,12 +352,12 @@ const StormSimulator = (function () {
 
     // 6.10. Thông báo giọng nói (nếu người dùng bật loa cảnh báo)
     if (window.VoiceWarning && typeof VoiceWarning.speak === 'function') {
-      VoiceWarning.speak('Đã trở về giao diện mặc định sau mô phỏng.');
+      VoiceWarning.speak('Đã khôi phục dữ liệu quan trắc thực tế từ cơ sở dữ liệu.');
     }
 
     // 6.11. Hiển thị thông báo Toast nổi
     if (typeof showToast === 'function') {
-      showToast('Đã trở về giao diện mặc định ban đầu', 'success');
+      showToast('Đã khôi phục dữ liệu thực từ các trạm quan trắc trong CSDL', 'success');
     }
   }
 

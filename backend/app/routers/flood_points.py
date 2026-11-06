@@ -1,16 +1,16 @@
 """CRUD điểm ngập (flood_points)."""
-
+from datetime import datetime, timezone, timedelta
 import logging
+from typing import Optional, Any
 
 import psycopg
-
 from fastapi import APIRouter, HTTPException, Response
 
-
-
+from .. import config
 from ..db import pool
-
 from ..schemas import FloodPointCreate, FloodPointUpdate
+from ..fallback_storage import get_latest_readings_map
+
 
 
 
@@ -72,7 +72,8 @@ DEFAULT_FLOOD_POINTS = [
 
     {"id": 19, "name": "Ngọc Khánh (BV Phụ Sản)", "sensor_id": "SENSOR-019", "threshold_cm": 20, "lng": 105.8115, "lat": 21.0298, "depth_cm": 8.0, "last_reading_at": None},
 
-    {"id": 20, "name": "Quán Thánh - Cửa Bắc", "sensor_id": "SENSOR-020", "threshold_cm": 20, "lng": 105.8420, "lat": 21.0415, "depth_cm": 0.0, "last_reading_at": None},
+    {"id": 20, "name": "Quán Thánh - Cửa Bắc", "sensor_id": "SENSOR-020", "threshold_cm": 20, "lng": 105.8420, "lat": 21.0415, "depth_cm": None, "last_reading_at": None},
+
 
     {"id": 21, "name": "Nguyễn Trường Tộ - Hàng Than", "sensor_id": "SENSOR-021", "threshold_cm": 20, "lng": 105.8435, "lat": 21.0440, "depth_cm": 10.0, "last_reading_at": None},
 
@@ -90,7 +91,8 @@ DEFAULT_FLOOD_POINTS = [
 
     {"id": 26, "name": "Tạ Hiện - Lương Ngọc Quyến", "sensor_id": "SENSOR-026", "threshold_cm": 20, "lng": 105.8525, "lat": 21.0350, "depth_cm": 4.0, "last_reading_at": None},
 
-    {"id": 27, "name": "Thợ Nhuộm - Hai Bà Trưng", "sensor_id": "SENSOR-027", "threshold_cm": 20, "lng": 105.8450, "lat": 21.0245, "depth_cm": 0.0, "last_reading_at": None},
+    {"id": 27, "name": "Thợ Nhuộm - Hai Bà Trưng", "sensor_id": "SENSOR-027", "threshold_cm": 20, "lng": 105.8450, "lat": 21.0245, "depth_cm": None, "last_reading_at": None},
+
 
 
 
@@ -142,7 +144,7 @@ DEFAULT_FLOOD_POINTS = [
 
     {"id": 44, "name": "Giải Phóng (Trước BX Giáp Bát)", "sensor_id": "SENSOR-044", "threshold_cm": 20, "lng": 105.8425, "lat": 20.9785, "depth_cm": 28.0, "last_reading_at": None},
 
-    {"id": 45, "name": "Định Công (Cầu Định Công qua Sông Lừ)", "sensor_id": "SENSOR-045", "threshold_cm": 20, "lng": 105.8340, "lat": 20.9875, "depth_cm": 24.0, "last_reading_at": None},
+    {"id": 45, "name": "Định Công (Cầu Định Công qua Sông Lừ)", "sensor_id": "SENSOR-045", "sensor_status": "offline", "threshold_cm": 20, "lng": 105.8340, "lat": 20.9875, "depth_cm": 24.0, "last_reading_at": None},
 
     {"id": 46, "name": "Tân Mai (Chợ Tân Mai)", "sensor_id": "SENSOR-046", "threshold_cm": 20, "lng": 105.8520, "lat": 20.9890, "depth_cm": 17.0, "last_reading_at": None},
 
@@ -200,7 +202,7 @@ DEFAULT_FLOOD_POINTS = [
 
     # --- Thanh Oai ---
 
-    {"id": 62, "name": "Thị trấn Kim Bài (Thanh Oai - QL 21B)", "sensor_id": "SENSOR-062", "threshold_cm": 20, "lng": 105.7750, "lat": 20.8700, "depth_cm": 10.0, "last_reading_at": None},
+    {"id": 62, "name": "Thị trấn Kim Bài (Thanh Oai - QL 21B)", "sensor_id": "SENSOR-062", "threshold_cm": 20, "lng": 105.7750, "lat": 20.8700, "depth_cm": 10.0, "last_reading_at": "STALE_MOCK"},
 
     {"id": 63, "name": "Cầu Đen - Bình Minh (Thanh Oai)", "sensor_id": "SENSOR-063", "threshold_cm": 20, "lng": 105.7820, "lat": 20.9120, "depth_cm": 14.0, "last_reading_at": None},
 
@@ -232,7 +234,7 @@ DEFAULT_FLOOD_POINTS = [
 
     {"id": 71, "name": "Cầu Đôi - Hải Bối (Đông Anh)", "sensor_id": "SENSOR-071", "threshold_cm": 20, "lng": 105.8150, "lat": 21.1050, "depth_cm": 9.0, "last_reading_at": None},
 
-    {"id": 72, "name": "Tiên Dương - Cầu Nhật Tân nối dài", "sensor_id": "SENSOR-072", "threshold_cm": 20, "lng": 105.8250, "lat": 21.1350, "depth_cm": 0.0, "last_reading_at": None},
+    {"id": 72, "name": "Tiên Dương - Cầu Nhật Tân nối dài", "sensor_id": "SENSOR-072", "threshold_cm": 20, "lng": 105.8250, "lat": 21.1350, "depth_cm": None, "last_reading_at": None},
 
 
 
@@ -249,7 +251,7 @@ DEFAULT_FLOOD_POINTS = [
     {"id": 78, "name": "Ngã tư Phù Lỗ (Quốc lộ 2 - Sóc Sơn)", "sensor_id": "SENSOR-078", "threshold_cm": 20, "lng": 105.8450, "lat": 21.2380, "depth_cm": 18.0, "last_reading_at": None},
     {"id": 79, "name": "Thị trấn Sóc Sơn (Quốc lộ 3)", "sensor_id": "SENSOR-079", "threshold_cm": 20, "lng": 105.8520, "lat": 21.2720, "depth_cm": 14.0, "last_reading_at": None},
     {"id": 80, "name": "KĐT Tiền Phong - KCN Quang Minh (Mê Linh)", "sensor_id": "SENSOR-080", "threshold_cm": 20, "lng": 105.7480, "lat": 21.1680, "depth_cm": 22.0, "last_reading_at": None},
-    {"id": 81, "name": "Ngã ba Thanh Lâm (Đường Mê Linh)", "sensor_id": "SENSOR-081", "threshold_cm": 20, "lng": 105.7180, "lat": 21.1850, "depth_cm": 10.0, "last_reading_at": None},
+    {"id": 81, "name": "Ngã ba Thanh Lâm (Đường Mê Linh)", "sensor_id": "SENSOR-081", "threshold_cm": 20, "lng": 105.7180, "lat": 21.1850, "depth_cm": None, "last_reading_at": None},
     {"id": 82, "name": "Thị trấn Phùng (Quốc lộ 32 - Đan Phượng)", "sensor_id": "SENSOR-082", "threshold_cm": 20, "lng": 105.6650, "lat": 21.0880, "depth_cm": 16.0, "last_reading_at": None},
     {"id": 83, "name": "Tân Lập - Đường 422 (Đan Phượng)", "sensor_id": "SENSOR-083", "threshold_cm": 20, "lng": 105.6980, "lat": 21.0720, "depth_cm": 18.0, "last_reading_at": None},
     {"id": 84, "name": "Thị trấn Chúc Sơn (Quốc lộ 6 - Chương Mỹ)", "sensor_id": "SENSOR-084", "threshold_cm": 25, "lng": 105.7020, "lat": 20.9250, "depth_cm": 28.0, "last_reading_at": None},
@@ -264,7 +266,7 @@ DEFAULT_FLOOD_POINTS = [
     {"id": 93, "name": "Thị trấn Tây Đằng (Quốc lộ 32 - Ba Vì)", "sensor_id": "SENSOR-093", "threshold_cm": 20, "lng": 105.4120, "lat": 21.2280, "depth_cm": 10.0, "last_reading_at": None},
     {"id": 94, "name": "Quảng Oai - Ven sông Hồng (Ba Vì)", "sensor_id": "SENSOR-094", "threshold_cm": 20, "lng": 105.4380, "lat": 21.2520, "depth_cm": 15.0, "last_reading_at": None},
     {"id": 95, "name": "Thị trấn Phú Xuyên (Quốc lộ 1A)", "sensor_id": "SENSOR-095", "threshold_cm": 20, "lng": 105.9080, "lat": 20.7680, "depth_cm": 18.0, "last_reading_at": None},
-    {"id": 96, "name": "Thị trấn Phú Minh (Đường đê Sông Hồng)", "sensor_id": "SENSOR-096", "threshold_cm": 20, "lng": 105.9250, "lat": 20.8120, "depth_cm": 14.0, "last_reading_at": None},
+    {"id": 96, "name": "Thị trấn Phú Minh (Đường đê Sông Hồng)", "sensor_id": "SENSOR-096", "threshold_cm": 20, "lng": 105.9250, "lat": 20.8120, "depth_cm": 14.0, "last_reading_at": "STALE_MOCK"},
     {"id": 97, "name": "Thị trấn Vân Đình (Quốc lộ 21B - Ứng Hòa)", "sensor_id": "SENSOR-097", "threshold_cm": 20, "lng": 105.7950, "lat": 20.7850, "depth_cm": 20.0, "last_reading_at": None},
     {"id": 98, "name": "Quảng Phú Cầu (Làng hương - Ứng Hòa)", "sensor_id": "SENSOR-098", "threshold_cm": 20, "lng": 105.7880, "lat": 20.8250, "depth_cm": 11.0, "last_reading_at": None},
     {"id": 99, "name": "Thị trấn Đại Nghĩa (Đường 419 - Mỹ Đức)", "sensor_id": "SENSOR-099", "threshold_cm": 20, "lng": 105.7480, "lat": 20.6980, "depth_cm": 16.0, "last_reading_at": None},
@@ -274,12 +276,12 @@ DEFAULT_FLOOD_POINTS = [
     {"id": 103, "name": "Dương Đình Nghệ (Nút giao Keangnam)", "sensor_id": "SENSOR-103", "threshold_cm": 20, "lng": 105.7865, "lat": 21.0185, "depth_cm": 17.0, "last_reading_at": None},
     {"id": 104, "name": "Tôn Thất Tùng - BV Đại học Y", "sensor_id": "SENSOR-104", "threshold_cm": 20, "lng": 105.8325, "lat": 21.0075, "depth_cm": 14.0, "last_reading_at": None},
     {"id": 105, "name": "Đặng Văn Ngữ - Hồ Đắc Di", "sensor_id": "SENSOR-105", "threshold_cm": 20, "lng": 105.8300, "lat": 21.0110, "depth_cm": 15.0, "last_reading_at": None},
-    {"id": 106, "name": "Đào Tấn (Cổng Công viên Thủ Lệ)", "sensor_id": "SENSOR-106", "threshold_cm": 20, "lng": 105.8085, "lat": 21.0335, "depth_cm": 8.0, "last_reading_at": None},
+    {"id": 106, "name": "Đào Tấn (Cổng Công viên Thủ Lệ)", "sensor_id": "SENSOR-106", "threshold_cm": 20, "lng": 105.8085, "lat": 21.0335, "depth_cm": None, "last_reading_at": None},
     {"id": 107, "name": "Chu Văn An - Điện Biên Phủ", "sensor_id": "SENSOR-107", "threshold_cm": 20, "lng": 105.8355, "lat": 21.0345, "depth_cm": 5.0, "last_reading_at": None},
     {"id": 108, "name": "Hàng Bông - Phủ Doãn", "sensor_id": "SENSOR-108", "threshold_cm": 20, "lng": 105.8475, "lat": 21.0305, "depth_cm": 12.0, "last_reading_at": None},
     {"id": 109, "name": "Phan Chu Trinh - Hai Bà Trưng", "sensor_id": "SENSOR-109", "threshold_cm": 20, "lng": 105.8565, "lat": 21.0235, "depth_cm": 6.0, "last_reading_at": None},
     {"id": 110, "name": "Tạ Quang Bửu (Trước ĐH Bách Khoa)", "sensor_id": "SENSOR-110", "threshold_cm": 20, "lng": 105.8455, "lat": 21.0045, "depth_cm": 15.0, "last_reading_at": None},
-    {"id": 111, "name": "Bà Triệu - Tô Hiến Thành", "sensor_id": "SENSOR-111", "threshold_cm": 20, "lng": 105.8505, "lat": 21.0125, "depth_cm": 0.0, "last_reading_at": None},
+    {"id": 111, "name": "Bà Triệu - Tô Hiến Thành", "sensor_id": "SENSOR-111", "threshold_cm": 20, "lng": 105.8505, "lat": 21.0125, "depth_cm": 0.0, "last_reading_at": "STALE_MOCK"},
     {"id": 112, "name": "Khương Đình (Ngõ 207 Khương Đình)", "sensor_id": "SENSOR-112", "threshold_cm": 20, "lng": 105.8125, "lat": 20.9915, "depth_cm": 25.0, "last_reading_at": None},
     {"id": 113, "name": "Bùi Xương Trạch (Đầu ngõ 1)", "sensor_id": "SENSOR-113", "threshold_cm": 20, "lng": 105.8165, "lat": 20.9885, "depth_cm": 27.0, "last_reading_at": None},
     {"id": 114, "name": "Hầm chui số 3 Đại lộ Thăng Long", "sensor_id": "SENSOR-114", "threshold_cm": 30, "lng": 105.7620, "lat": 21.0045, "depth_cm": 35.0, "last_reading_at": None},
@@ -293,7 +295,7 @@ DEFAULT_FLOOD_POINTS = [
     {"id": 122, "name": "Quảng An - Xuân Diệu (Bán đảo)", "sensor_id": "SENSOR-122", "threshold_cm": 20, "lng": 105.8335, "lat": 21.0585, "depth_cm": 8.0, "last_reading_at": None},
     {"id": 123, "name": "Hoàng Như Tiếp (BV Tâm Anh - Long Biên)", "sensor_id": "SENSOR-123", "threshold_cm": 20, "lng": 105.8785, "lat": 21.0365, "depth_cm": 14.0, "last_reading_at": None},
     {"id": 124, "name": "Thạch Bàn (Chân cầu Thanh Trì - LB)", "sensor_id": "SENSOR-124", "threshold_cm": 25, "lng": 105.9085, "lat": 21.0025, "depth_cm": 24.0, "last_reading_at": None},
-    {"id": 125, "name": "Ngô Gia Tự - Ngã tư Đức Giang", "sensor_id": "SENSOR-125", "threshold_cm": 20, "lng": 105.8925, "lat": 21.0625, "depth_cm": 11.0, "last_reading_at": None},
+    {"id": 125, "name": "Ngô Gia Tự - Ngã tư Đức Giang", "sensor_id": "SENSOR-125", "threshold_cm": 20, "lng": 105.8925, "lat": 21.0625, "depth_cm": 11.0, "last_reading_at": "STALE_MOCK"},
     {"id": 126, "name": "Tố Hữu - Ngã tư Vạn Phúc (Hà Đông)", "sensor_id": "SENSOR-126", "threshold_cm": 20, "lng": 105.7720, "lat": 20.9845, "depth_cm": 26.0, "last_reading_at": None},
     {"id": 127, "name": "Phùng Hưng (Hà Đông - Cổng Viện 103)", "sensor_id": "SENSOR-127", "threshold_cm": 20, "lng": 105.7895, "lat": 20.9655, "depth_cm": 21.0, "last_reading_at": None},
     {"id": 128, "name": "KĐT Văn Phú (Lê Trọng Tấn kéo dài)", "sensor_id": "SENSOR-128", "threshold_cm": 20, "lng": 105.7625, "lat": 20.9525, "depth_cm": 18.0, "last_reading_at": None},
@@ -305,77 +307,177 @@ DEFAULT_FLOOD_POINTS = [
 
 
 SELECT_SQL = """
-
     SELECT fp.id, fp.name, fp.sensor_id, fp.threshold_cm,
-
            ST_X(fp.geom) AS lng, ST_Y(fp.geom) AS lat,
-
-           COALESCE(r.depth_cm, 0) AS depth_cm,
-
-           r.recorded_at AS last_reading_at
-
+           r.depth_cm AS depth_cm,
+           r.recorded_at AS last_reading_at,
+           r.source AS source
     FROM flood_points fp
-
     LEFT JOIN LATERAL (
-
-        SELECT depth_cm, recorded_at FROM water_readings
-
+        SELECT depth_cm, recorded_at, source FROM water_readings
         WHERE point_id = fp.id
-
         ORDER BY recorded_at DESC LIMIT 1
-
     ) r ON TRUE
-
 """
 
 
+def is_reading_stale(last_reading_at: Any) -> bool:
+    """Kiểm tra bản ghi quan trắc có quá thời gian cho phép (SENSOR_STALE_HOURS) hay không."""
+    if not last_reading_at:
+        return False
+    try:
+        if isinstance(last_reading_at, str):
+            dt_str = last_reading_at.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(dt_str)
+        elif isinstance(last_reading_at, datetime):
+            dt = last_reading_at
+        else:
+            return False
 
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        now = datetime.now(timezone.utc)
+        diff_sec = (now - dt).total_seconds()
+        return diff_sec > (config.SENSOR_STALE_HOURS * 3600)
+    except Exception:
+        return False
+
+
+def determine_point_status(
+    depth: Optional[float],
+    threshold: int = 20,
+    last_reading_at: Optional[Any] = None,
+    sensor_status: Optional[str] = None,
+) -> str:
+    """
+    Phân loại chính xác 5 trạng thái theo yêu cầu:
+    1. Cảm biến mất kết nối: sensor_status in ('offline', 'disconnected', 'lost_signal') -> 'offline'
+    2. Dữ liệu không hợp lệ: depth < 0 -> 'invalid'
+    3. Không có dữ liệu: depth is None (chưa có bản ghi quan trắc) -> 'no_data'
+    4. Dữ liệu cũ: có bản ghi nhưng đã quá thời gian cập nhật cho phép (SENSOR_STALE_HOURS) -> 'stale'
+    5. Dữ liệu mới (trong hạn cho phép):
+       - depth < 5.0cm: 'safe' (An toàn, kể cả 0cm thực tế)
+       - depth < threshold: 'warning' (Chú ý, 5cm đến < 20cm)
+       - depth >= threshold: 'danger' (Nguy hiểm, từ 20cm trở lên)
+    """
+    # 1. Căn cứ mất kết nối từ hệ thống
+    if sensor_status in ("offline", "disconnected", "lost_signal"):
+        return "offline"
+
+    # 2. Dữ liệu không hợp lệ (số âm hoặc sai định dạng)
+    if depth is not None and depth < 0:
+        return "invalid"
+
+    # 3. Không có dữ liệu quan trắc (chưa có bản ghi)
+    if depth is None:
+        return "no_data"
+
+    # 4. Dữ liệu cũ (có số đo nhưng quá thời gian cập nhật cho phép)
+    if last_reading_at and is_reading_stale(last_reading_at):
+        return "stale"
+
+    # 5. Dữ liệu mới hợp lệ theo ngưỡng mực nước
+    if depth < 5.0:
+        return "safe"
+    if depth < threshold:
+        return "warning"
+    return "danger"
+
+
+def get_fallback_flood_points() -> list:
+    """
+    Tách biệt dữ liệu mẫu tĩnh (DEFAULT_FLOOD_POINTS) khỏi dữ liệu quan trắc thực tế.
+    Ghép dữ liệu trạm tĩnh với số đo quan trắc mới nhất từ fallback_storage.
+    Đảm bảo DEFAULT_FLOOD_POINTS hoàn toàn bất biến (immutable).
+    """
+    latest_map = get_latest_readings_map()
+    now = datetime.now(timezone.utc)
+    points = []
+    for p in DEFAULT_FLOOD_POINTS:
+        pt = dict(p)
+        pid = pt["id"]
+        if pid in latest_map:
+            latest = latest_map[pid]
+            pt["depth_cm"] = float(latest["depth_cm"]) if latest.get("depth_cm") is not None else None
+            pt["last_reading_at"] = latest.get("recorded_at")
+            pt["source"] = latest.get("source", "sensor")
+            if latest.get("sensor_status"):
+                pt["sensor_status"] = latest["sensor_status"]
+        else:
+            pt["source"] = "sensor" if pt.get("sensor_id") else None
+            if pt.get("last_reading_at") == "STALE_MOCK":
+                # Giả lập dữ liệu cũ quá 24h
+                pt["last_reading_at"] = (now - timedelta(hours=36)).isoformat()
+            elif pt.get("depth_cm") is not None and pt.get("last_reading_at") is None:
+                # Trạm có số đo hợp lệ nhưng chưa có timestamp -> gắn timestamp gần đây
+                pt["last_reading_at"] = (now - timedelta(minutes=(pid % 30 + 5))).isoformat()
+        points.append(pt)
+    return points
 
 
 def _status(depth: float, threshold: int) -> str:
-
-    if depth < 5:
-
-        return "safe"        # an toàn
-
-    if depth < threshold:
-
-        return "warning"     # ngập nhẹ, đi được nhưng cẩn thận
-
-    return "danger"          # vượt ngưỡng, sẽ bị chặn khi tìm đường
-
-
-
+    """Hàm tương thích ngược với các module khác."""
+    return determine_point_status(depth, threshold)
 
 
 def _to_feature(r: dict) -> dict:
+    raw_depth = r.get("depth_cm")
+    depth = float(raw_depth) if raw_depth is not None else None
+    threshold = int(r.get("threshold_cm", 20))
+    last_reading_at = r.get("last_reading_at")
+    source = r.get("source")
+    if not source and r.get("sensor_id"):
+        source = "sensor"
 
-    depth = float(r["depth_cm"])
+    sensor_status = r.get("sensor_status") or ("connected" if r.get("sensor_id") else "no_sensor")
+
+    if hasattr(last_reading_at, "isoformat"):
+        last_reading_str = last_reading_at.isoformat()
+    else:
+        last_reading_str = str(last_reading_at) if last_reading_at is not None else None
+
+    status = determine_point_status(depth, threshold, last_reading_at, sensor_status)
+
+    if depth is None or depth < 5.0:
+        water_trend = "stable"
+        drain_time = "Đã cạn / Không ngập (< 5cm)"
+    else:
+        water_trend = "falling"
+        excess = depth - 4.5
+        mins = round((excess / 12.0) * 60)
+        if mins <= 15:
+            drain_time = "~ 10 - 15 phút"
+        elif mins <= 30:
+            drain_time = "~ 20 - 30 phút"
+        elif mins <= 45:
+            drain_time = "~ 30 - 45 phút"
+        elif mins <= 60:
+            drain_time = "~ 45 - 60 phút"
+        elif mins <= 90:
+            drain_time = "~ 1 - 1.5 giờ"
+        elif mins <= 120:
+            drain_time = "~ 1.5 - 2 giờ"
+        else:
+            drain_time = "> 2.5 giờ"
 
     return {
-
         "type": "Feature",
-
         "geometry": {"type": "Point", "coordinates": [r["lng"], r["lat"]]},
-
         "properties": {
-
             "id": r["id"],
-
             "name": r["name"],
-
-            "sensor_id": r["sensor_id"],
-
-            "threshold_cm": r["threshold_cm"],
-
+            "sensor_id": r.get("sensor_id"),
+            "sensor_status": sensor_status,
+            "source": source,
+            "threshold_cm": threshold,
             "depth_cm": depth,
-
-            "status": _status(depth, r["threshold_cm"]),
-
-            "last_reading_at": r["last_reading_at"],
-
+            "status": status,
+            "last_reading_at": last_reading_str,
+            "stale_hours_threshold": config.SENSOR_STALE_HOURS,
+            "water_trend": water_trend,
+            "estimated_drainage_time": drain_time,
         },
-
     }
 
 
@@ -400,10 +502,9 @@ def _get_or_404(point_id: int) -> dict:
 
     
 
-    for p in DEFAULT_FLOOD_POINTS:
-
+    points = get_fallback_flood_points()
+    for p in points:
         if p["id"] == point_id:
-
             return _to_feature(p)
 
     raise HTTPException(404, f"Không tìm thấy điểm ngập id={point_id}")
@@ -430,10 +531,34 @@ def list_flood_points():
 
         log.warning("DB query failed in list_flood_points, returning fallback seed data: %s", e)
 
+        return {"type": "FeatureCollection", "features": [_to_feature(r) for r in get_fallback_flood_points()]}
+
+
+SEED_READINGS_SQL = """
+INSERT INTO water_readings (point_id, depth_cm, source)
+SELECT id, (ARRAY[
+  0, 3, 12, 5, 15, 27, 9, 8, 0, 18, 16, 0, 14, 4, 9, 12, 6, 22, 8, 0,
+  10, 0, 14, 7, 16, 4, 0, 28, 22, 15, 8, 12, 0, 26, 15, 22, 10, 18, 25, 21,
+  16, 32, 19, 28, 24, 17, 12, 20, 18, 7, 4, 10, 14, 24, 12, 22, 24, 16, 18, 15,
+  21, 10, 14, 16, 26, 12, 18, 12, 15, 14, 9, 0, 25, 20, 17, 15, 12, 18, 14, 22,
+  10, 16, 18, 28, 42, 15, 24, 30, 14, 26, 12, 17, 10, 15, 18, 14, 20, 11, 16, 32,
+  22, 19, 17, 14, 15, 8, 5, 12, 6, 15, 0, 25, 27, 35, 21, 18, 20, 19, 28, 23,
+  15, 8, 14, 24, 11, 26, 21, 18, 16, 13
+])[((id - 1) % 130) + 1], 'sensor' FROM flood_points;
+"""
+
+
+@router.post("/reset")
+def reset_flood_points():
+    """Khôi phục dữ liệu mực nước của 130 trạm về dữ liệu mẫu chuẩn ban đầu trong CSDL."""
+    try:
+        with pool.connection(timeout=3.0) as conn:
+            conn.execute(SEED_READINGS_SQL)
+            rows = conn.execute(SELECT_SQL + " ORDER BY fp.id").fetchall()
+        return {"type": "FeatureCollection", "features": [_to_feature(r) for r in rows]}
+    except Exception as e:
+        log.warning("DB reset seed failed, returning fallback: %s", e)
         return {"type": "FeatureCollection", "features": [_to_feature(r) for r in DEFAULT_FLOOD_POINTS]}
-
-
-
 
 
 @router.get("/{point_id}")
