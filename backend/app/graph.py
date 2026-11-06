@@ -6,6 +6,7 @@ import threading
 import geopandas as gpd
 import numpy as np
 import osmnx as ox
+from shapely.geometry import Point
 
 from . import config
 from .db import pool
@@ -38,6 +39,56 @@ class RoadGraph:
         d2 = ((self.node_lng - lng) * k) ** 2 + (self.node_lat - lat) ** 2
         i = int(d2.argmin())
         return int(self.node_ids[i]), math.sqrt(float(d2[i])) * 111_320
+
+    def snap_to_edge(self, lng: float, lat: float):
+        """
+        Tìm cạnh (đoạn đường / ngõ) gần nhất và vị trí tiếp cận chính xác trên mặt đường:
+        - Sử dụng R-tree spatial index (self.edges_m.sindex) trong hệ toạ độ mét.
+        - Chiếu điểm lên cạnh để lấy toạ độ tiếp cận thực tế (projected point) và hai nút giao đầu mút.
+        """
+        try:
+            pt_m = gpd.GeoSeries([Point(lng, lat)], crs=4326).to_crs(config.METRIC_CRS)[0]
+            hits = self.edges_m.sindex.nearest(pt_m)
+            edge_idx = int(hits[1][0]) if len(hits) == 2 else int(hits[0])
+            edge_row = self.edges_m.iloc[edge_idx]
+            u, v, k = self.edge_keys[edge_idx]
+            dist_m = float(edge_row.geometry.distance(pt_m))
+
+            edge_geom_m = edge_row.geometry
+            proj_dist_m = edge_geom_m.project(pt_m)
+            proj_pt_m = edge_geom_m.interpolate(proj_dist_m)
+            proj_pt_4326 = gpd.GeoSeries([proj_pt_m], crs=config.METRIC_CRS).to_crs(4326)[0]
+            proj_pt = [round(float(proj_pt_4326.x), 6), round(float(proj_pt_4326.y), 6)]
+
+            length_m = edge_geom_m.length
+            ratio = (proj_dist_m / length_m) if length_m > 0 else 0.5
+            closer_node = u if ratio < 0.5 else v
+
+            return {
+                "u": u,
+                "v": v,
+                "key": k,
+                "closer_node": closer_node,
+                "dist_m": dist_m,
+                "proj_pt": proj_pt,
+                "ratio": ratio,
+                "name": edge_row.get("name"),
+            }
+        except Exception as e:
+            log.warning("Lỗi snap_to_edge: %s. Dùng fallback nearest_node.", e)
+            n, d = self.nearest_node(lng, lat)
+            node_x = self.G.nodes[n]["x"]
+            node_y = self.G.nodes[n]["y"]
+            return {
+                "u": n,
+                "v": n,
+                "key": 0,
+                "closer_node": n,
+                "dist_m": d,
+                "proj_pt": [round(node_x, 6), round(node_y, 6)],
+                "ratio": 0.0,
+                "name": "Nút giao",
+            }
 
     def flood_edges(self, sources: list) -> dict:
         """

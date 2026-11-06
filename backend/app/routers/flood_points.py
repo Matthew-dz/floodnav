@@ -439,6 +439,28 @@ def _to_feature(r: dict) -> dict:
 
     status = determine_point_status(depth, threshold, last_reading_at, sensor_status)
 
+    if depth is None or depth < 5.0:
+        water_trend = "stable"
+        drain_time = "Đã cạn / Không ngập (< 5cm)"
+    else:
+        water_trend = "falling"
+        excess = depth - 4.5
+        mins = round((excess / 12.0) * 60)
+        if mins <= 15:
+            drain_time = "~ 10 - 15 phút"
+        elif mins <= 30:
+            drain_time = "~ 20 - 30 phút"
+        elif mins <= 45:
+            drain_time = "~ 30 - 45 phút"
+        elif mins <= 60:
+            drain_time = "~ 45 - 60 phút"
+        elif mins <= 90:
+            drain_time = "~ 1 - 1.5 giờ"
+        elif mins <= 120:
+            drain_time = "~ 1.5 - 2 giờ"
+        else:
+            drain_time = "> 2.5 giờ"
+
     return {
         "type": "Feature",
         "geometry": {"type": "Point", "coordinates": [r["lng"], r["lat"]]},
@@ -453,6 +475,8 @@ def _to_feature(r: dict) -> dict:
             "status": status,
             "last_reading_at": last_reading_str,
             "stale_hours_threshold": config.SENSOR_STALE_HOURS,
+            "water_trend": water_trend,
+            "estimated_drainage_time": drain_time,
         },
     }
 
@@ -510,7 +534,31 @@ def list_flood_points():
         return {"type": "FeatureCollection", "features": [_to_feature(r) for r in get_fallback_flood_points()]}
 
 
+SEED_READINGS_SQL = """
+INSERT INTO water_readings (point_id, depth_cm, source)
+SELECT id, (ARRAY[
+  0, 3, 12, 5, 15, 27, 9, 8, 0, 18, 16, 0, 14, 4, 9, 12, 6, 22, 8, 0,
+  10, 0, 14, 7, 16, 4, 0, 28, 22, 15, 8, 12, 0, 26, 15, 22, 10, 18, 25, 21,
+  16, 32, 19, 28, 24, 17, 12, 20, 18, 7, 4, 10, 14, 24, 12, 22, 24, 16, 18, 15,
+  21, 10, 14, 16, 26, 12, 18, 12, 15, 14, 9, 0, 25, 20, 17, 15, 12, 18, 14, 22,
+  10, 16, 18, 28, 42, 15, 24, 30, 14, 26, 12, 17, 10, 15, 18, 14, 20, 11, 16, 32,
+  22, 19, 17, 14, 15, 8, 5, 12, 6, 15, 0, 25, 27, 35, 21, 18, 20, 19, 28, 23,
+  15, 8, 14, 24, 11, 26, 21, 18, 16, 13
+])[((id - 1) % 130) + 1], 'sensor' FROM flood_points;
+"""
 
+
+@router.post("/reset")
+def reset_flood_points():
+    """Khôi phục dữ liệu mực nước của 130 trạm về dữ liệu mẫu chuẩn ban đầu trong CSDL."""
+    try:
+        with pool.connection(timeout=3.0) as conn:
+            conn.execute(SEED_READINGS_SQL)
+            rows = conn.execute(SELECT_SQL + " ORDER BY fp.id").fetchall()
+        return {"type": "FeatureCollection", "features": [_to_feature(r) for r in rows]}
+    except Exception as e:
+        log.warning("DB reset seed failed, returning fallback: %s", e)
+        return {"type": "FeatureCollection", "features": [_to_feature(r) for r in DEFAULT_FLOOD_POINTS]}
 
 
 @router.get("/{point_id}")

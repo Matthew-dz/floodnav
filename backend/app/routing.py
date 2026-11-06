@@ -188,3 +188,23 @@ def describe_route(G, flood_map: dict, path: list, vehicle: str, mode: str) -> d
         "flood_warnings": list(warnings.values()),
         "geometry": {"type": "LineString", "coordinates": [[round(x, 6), round(y, 6)] for x, y in coords]},
     }
+
+
+def slice_coords_to_proj(coords_list: list, proj_coord: list, from_start: bool = True) -> list:
+    """Cắt danh sách toạ độ cạnh từ đầu danh sách tới điểm chiếu proj_coord (hoặc ngược lại)."""
+    if not coords_list:
+        return [proj_coord]
+    min_d, min_idx = float("inf"), 0
+    px, py = proj_coord[0], proj_coord[1]
+    for idx, c in enumerate(coords_list):
+        d = (c[0] - px) ** 2 + (c[1] - py) ** 2
+        if d < min_d:
+            min_d, min_idx = d, idx
+    if from_start:
+        res = list(coords_list[:min_idx + 1])
+        if not res or res[-1] != proj_coord:
+            res.append(proj_coord)
+        return res
+    else:
+        res = [proj_coord] + list(coords_list[min_idx:])
+        return res

@@ -212,24 +212,15 @@ function initMap() {
 
 
 
-  // Mặc định nạp ESRI
-
-  currentBaseLayer = esriBaseLayer;
-
+  // Mặc định nạp OpenStreetMap (Đồng bộ 100% với mạng lưới giao thông cập nhật mới)
+  currentBaseLayer = osmFrLayer;
   currentBaseLayer.addTo(map);
 
-
-
   L.control.layers({
-
-    'Bản đồ Đường phố (ESRI)': esriBaseLayer,
-
+    'OpenStreetMap (Chuẩn OSM - Cập nhật mới)': osmFrLayer,
+    'OpenStreetMap Quốc tế': osmLayer,
     'Chế độ Ban đêm (ESRI Dark)': darkBaseLayer,
-
-    'OpenStreetMap (Bản đồ Pháp OSM-FR)': osmFrLayer,
-
-    'OpenStreetMap Chuẩn': osmLayer
-
+    'Bản đồ ESRI (Dữ liệu cũ - Thiếu đường mới)': esriBaseLayer
   }, null, { position: 'topright' }).addTo(map);
 
 
@@ -514,6 +505,7 @@ function updateSidebarFloodSummary() {
 // KHU VỰC QUẢN LÝ DỰ ĐOÁN NGẬP BẰNG AI (Router /api/predictions)
 // ============================================================================
 let aiPredictionsCache = null;
+window.aiPredictionsCache = null;
 let aiPredictionsLoading = false;
 let aiPredictionsError = false;
 
@@ -644,23 +636,30 @@ function updateOpenPopupAi() {
   containers.forEach(el => {
     const pointId = parseInt(el.getAttribute('data-ai-point-id'), 10);
     const threshold = parseFloat(el.getAttribute('data-threshold')) || 20;
+    const parent = el.closest('.flood-custom-popup') || el.parentElement;
+    const drainageContainer = parent ? (parent.querySelector(`#popup-drainage-forecast-${pointId}`) || parent.querySelector('[data-drainage-point-id]')) : null;
+
     if (aiPredictionsError) {
       el.innerHTML = renderAiErrorHtml();
     } else if (aiPredictionsCache) {
       const pred = aiPredictionsCache[pointId];
       el.innerHTML = renderAiForecastHtml(pred, threshold);
+      if (drainageContainer && pred) {
+        drainageContainer.innerHTML = renderDrainageForecastHtml(pred);
+      }
     }
   });
 }
 
-async function fetchAiPredictions() {
-  if (aiPredictionsCache !== null) return aiPredictionsCache;
+async function fetchAiPredictions(forceRefresh = false, rainfallMm = null) {
+  if (!forceRefresh && aiPredictionsCache !== null) return aiPredictionsCache;
   if (aiPredictionsLoading) return;
   aiPredictionsLoading = true;
   aiPredictionsError = false;
 
   try {
-    const res = await fetch('/api/predictions');
+    const query = (rainfallMm !== null && rainfallMm !== undefined) ? `?rainfall_mm=${encodeURIComponent(rainfallMm)}` : '';
+    const res = await fetch(`/api/predictions${query}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (Array.isArray(data)) {
@@ -670,9 +669,11 @@ async function fetchAiPredictions() {
           aiPredictionsCache[item.point_id] = item;
         }
       });
+      window.aiPredictionsCache = aiPredictionsCache;
       aiPredictionsError = false;
     } else {
       aiPredictionsCache = {};
+      window.aiPredictionsCache = {};
     }
     updateOpenPopupAi();
     return aiPredictionsCache;
@@ -686,6 +687,9 @@ async function fetchAiPredictions() {
   }
 }
 
+window.fetchAiPredictions = fetchAiPredictions;
+window.updateOpenPopupAi = updateOpenPopupAi;
+
 function handlePopupOpen(e) {
   const popup = e.popup;
   if (!popup) return;
@@ -696,10 +700,14 @@ function handlePopupOpen(e) {
 
   const pointId = parseInt(aiContainer.getAttribute('data-ai-point-id'), 10);
   const threshold = parseFloat(aiContainer.getAttribute('data-threshold')) || 20;
+  const drainageContainer = el.querySelector(`#popup-drainage-forecast-${pointId}`) || el.querySelector('[data-drainage-point-id]');
 
   if (aiPredictionsCache) {
     const pred = aiPredictionsCache[pointId];
     aiContainer.innerHTML = renderAiForecastHtml(pred, threshold);
+    if (drainageContainer && pred) {
+      drainageContainer.innerHTML = renderDrainageForecastHtml(pred);
+    }
   } else if (aiPredictionsError) {
     aiContainer.innerHTML = renderAiErrorHtml();
   } else if (!aiPredictionsLoading) {
@@ -712,9 +720,9 @@ function handlePopupOpen(e) {
 // KHU VỰC DỰ ĐOÁN THỜI GIAN NƯỚC RÚT & XU HƯỚNG MỰC NƯỚC
 // ============================================================================
 function renderDrainageForecastHtml(fp) {
-  // Kiểm tra nếu trạm có dữ liệu thời gian nước rút và xu hướng từ API (khi backend hỗ trợ)
-  const trend = (fp && fp.water_trend) ? fp.water_trend : null;
-  const drainTime = (fp && fp.estimated_drainage_time) ? fp.estimated_drainage_time : null;
+  // Trích xuất xu hướng và thời gian nước rút từ API (hỗ trợ cả cấu trúc phẳng lẫn object lồng nhau)
+  const trend = (fp && (fp.water_trend || (fp.drainage_forecast && fp.drainage_forecast.water_trend))) || null;
+  const drainTime = (fp && (fp.estimated_drainage_time || (fp.drainage_forecast && fp.drainage_forecast.estimated_drainage_time))) || null;
 
   let trendLabel = 'Chưa xác định';
   let trendClass = 'text-slate-700';
@@ -760,7 +768,7 @@ function renderDrainageForecastHtml(fp) {
             <span class="w-2 h-2 rounded-full ${trendDot} flex-shrink-0"></span>
             <span class="text-xs font-bold ${trendClass}">${trendLabel}</span>
           </div>
-          <p class="text-[9px] text-slate-400 mt-0.5 leading-tight">${isSupported ? '' : 'Cần chuỗi đo lịch sử'}</p>
+          <p class="text-[9px] text-slate-400 mt-0.5 leading-tight">${isSupported ? 'Dự báo theo mô hình AI' : 'Cần chuỗi đo lịch sử'}</p>
         </div>
 
         <!-- Thời gian nước rút dự kiến -->
@@ -771,7 +779,7 @@ function renderDrainageForecastHtml(fp) {
               ${drainTimeDisplay}
             </span>
           </div>
-          <p class="text-[9px] text-slate-400 mt-0.5 leading-tight">${isSupported ? '' : 'Chưa có mô hình tính'}</p>
+          <p class="text-[9px] text-slate-400 mt-0.5 leading-tight">${isSupported ? 'Về ngưỡng an toàn (< 5cm)' : 'Chưa có mô hình tính'}</p>
         </div>
       </div>
     </div>
@@ -1100,7 +1108,7 @@ function renderFloodPoints(data) {
         </div>
 
         <!-- Khu vực dự đoán nước rút (Xu hướng & Thời gian rút) -->
-        <div id="popup-drainage-forecast-${id}">
+        <div id="popup-drainage-forecast-${id}" data-drainage-point-id="${id}">
           ${drainageHtml}
         </div>
 
@@ -2101,7 +2109,7 @@ function selectActiveRoute(mode) {
 
     // Chạy mô phỏng di chuyển xe dọc theo các điểm uốn lượn thực tế của tuyến an toàn
     if (window.VehicleSim && typeof VehicleSim.start === 'function') {
-      const latlngs = routeLayers.safe.getLatLngs();
+      const latlngs = routeLayers.safe.getLatLngs().map(ll => Array.isArray(ll) ? [ll[0], ll[1]] : [ll.lat, ll.lng]);
       const v = document.querySelector('input[name="vehicle"]:checked');
       VehicleSim.start(latlngs, v ? v.value : 'motorbike');
     }
@@ -2152,7 +2160,7 @@ function selectActiveRoute(mode) {
 
     // Chạy mô phỏng di chuyển xe dọc theo các điểm uốn lượn thực tế của tuyến nhanh nhất
     if (window.VehicleSim && typeof VehicleSim.start === 'function') {
-      const latlngs = routeLayers.fastest.getLatLngs();
+      const latlngs = routeLayers.fastest.getLatLngs().map(ll => Array.isArray(ll) ? [ll[0], ll[1]] : [ll.lat, ll.lng]);
       const v = document.querySelector('input[name="vehicle"]:checked');
       VehicleSim.start(latlngs, v ? v.value : 'motorbike');
     }
@@ -2294,9 +2302,9 @@ function toggleDarkMode() {
 
       }
 
-      esriBaseLayer.addTo(map);
+      osmFrLayer.addTo(map);
 
-      currentBaseLayer = esriBaseLayer;
+      currentBaseLayer = osmFrLayer;
 
     }
 

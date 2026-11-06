@@ -31,10 +31,28 @@ const VehicleSim = (function () {
     iconEl = null;
   }
 
-  // latlngs: [[lat, lng], ...] của tuyến an toàn; vehicle: 'motorbike' | 'car'
-  function start(latlngs, vehicle) {
+  function toLatLngPair(p) {
+    if (!p) return null;
+    let lat = null, lng = null;
+    if (Array.isArray(p)) {
+      lat = Number(p[0]);
+      lng = Number(p[1]);
+    } else if (typeof p === 'object') {
+      lat = p.lat !== undefined ? Number(p.lat) : Number(p[0]);
+      lng = p.lng !== undefined ? Number(p.lng) : Number(p[1]);
+    }
+    if (lat === null || lng === null || isNaN(lat) || isNaN(lng)) return null;
+    return [lat, lng];
+  }
+
+  // rawLatLngs: [[lat, lng], ...] hoặc [L.LatLng, ...] của tuyến an toàn; vehicle: 'motorbike' | 'car'
+  function start(rawLatLngs, vehicle) {
     stop();
-    if (typeof map === 'undefined' || !latlngs || latlngs.length < 2) return;
+    if (typeof map === 'undefined' || !rawLatLngs || !Array.isArray(rawLatLngs) || rawLatLngs.length < 2) return;
+
+    // Chuẩn hóa toàn bộ tọa độ về mảng 2 chiều [[lat, lng], [lat, lng], ...]
+    const latlngs = rawLatLngs.map(toLatLngPair).filter(Boolean);
+    if (latlngs.length < 2) return;
 
     // Quãng đường tích luỹ tại từng đỉnh của polyline
     const cum = [0];
