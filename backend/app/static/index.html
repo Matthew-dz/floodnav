@@ -36,7 +36,7 @@
 
   <!-- Custom Styles (Phụ trách: Thành viên 1) -->
 
-  <link rel="stylesheet" href="/static/css/style.css?v=5.3" />
+  <link rel="stylesheet" href="/static/css/style.css?v=5.4" />
 
 </head>
 
@@ -46,15 +46,15 @@
 
   <!-- Header: Thanh công cụ FloodNav 3 Nhóm Chức năng Tối ưu (FE-02) -->
   <header class="floating-header mx-2 sm:mx-4 mt-2 sm:mt-2.5 bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white rounded-2xl shadow-xl border border-white/20 z-40 flex-shrink-0 backdrop-blur-md">
-    <div class="w-full px-3 sm:px-4 py-2 flex items-center justify-between gap-2 sm:gap-3">
+    <div class="w-full px-3 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between gap-2 sm:gap-3">
 
       <!-- LOGO & NHẬN DIỆN THƯƠNG HIỆU -->
       <div class="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
         <div class="p-1.5 sm:p-2 bg-white/20 rounded-xl backdrop-blur-sm shadow-inner flex-shrink-0">
-          <i data-lucide="waves" class="w-5 h-5 text-cyan-200"></i>
+          <i data-lucide="waves" class="w-4 h-4 sm:w-5 sm:h-5 text-cyan-200"></i>
         </div>
         <div>
-          <h1 class="text-sm sm:text-base font-extrabold tracking-tight flex items-center gap-1.5 leading-tight">
+          <h1 class="text-xs sm:text-base font-extrabold tracking-tight flex items-center gap-1.5 leading-tight">
             <span>FloodNav</span>
             <span class="text-[10px] font-bold px-1.5 py-0.5 bg-cyan-400 text-slate-900 rounded-full shadow-sm">Hà Nội</span>
           </h1>
@@ -63,7 +63,7 @@
       </div>
 
       <!-- NHÓM 1 – CHỨC NĂNG CHÍNH (Tabs Tìm đường, Điểm ngập, Báo ngập) -->
-      <nav aria-label="Chức năng chính" class="flex items-center bg-black/25 p-1 rounded-xl border border-white/10 shadow-inner flex-shrink-0">
+      <nav aria-label="Chức năng chính" class="hidden sm:flex items-center bg-black/25 p-1 rounded-xl border border-white/10 shadow-inner flex-shrink-0">
         <button id="hdr-btn-route" onclick="switchTab('route')" title="Lập lộ trình và điều hướng né điểm ngập an toàn" class="px-2.5 sm:px-3 py-1.5 rounded-lg bg-white/25 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm border border-white/20">
           <i data-lucide="navigation" class="w-3.5 h-3.5 text-cyan-200"></i>
           <span>Tìm đường</span>
@@ -153,7 +153,23 @@
           </button>
 
           <!-- Dropdown Menu Phụ -->
-          <div id="header-more-dropdown" class="hidden absolute right-0 top-full mt-2 w-52 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 py-1.5 z-50 text-xs backdrop-blur-md">
+          <div id="header-more-dropdown" class="hidden absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-800 py-1.5 z-50 text-xs backdrop-blur-md">
+            <!-- Chức năng chính trên mobile khi ẩn thanh tabs trên header -->
+            <div class="sm:hidden border-b border-slate-100 dark:border-slate-800 pb-1 mb-1">
+              <div class="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Chức năng chính</div>
+              <button onclick="switchTab('route'); closeHeaderMenu();" class="w-full px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 font-medium">
+                <i data-lucide="navigation" class="w-4 h-4 text-cyan-600"></i>
+                <span>Tìm đường né ngập</span>
+              </button>
+              <button onclick="switchTab('points'); closeHeaderMenu();" class="w-full px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 font-medium">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-500"></i>
+                <span>Danh sách 130 trạm quan trắc</span>
+              </button>
+              <button onclick="switchTab('report'); closeHeaderMenu();" class="w-full px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 font-medium">
+                <i data-lucide="send" class="w-4 h-4 text-emerald-500"></i>
+                <span>Báo cáo ngập lụt</span>
+              </button>
+            </div>
             <button onclick="openHelpGuide(); closeHeaderMenu();" title="Mở hướng dẫn sử dụng nhanh" class="w-full px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-2 font-medium">
               <i data-lucide="help-circle" class="w-4 h-4 text-cyan-600"></i>
               <span>Hướng dẫn sử dụng (?)</span>
@@ -172,7 +188,12 @@
             </button>
             <!-- Hiển thị bộ chọn kịch bản mưa khi ở màn hình nhỏ (< lg) -->
             <div class="lg:hidden border-t border-slate-100 dark:border-slate-800 pt-1 mt-1">
-              <div class="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mô phỏng thời tiết</div>
+              <div class="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                <span>Mô phỏng thời tiết</span>
+                <button type="button" onclick="StormSimulator.resetToDefault(); closeHeaderMenu();" class="text-cyan-600 dark:text-cyan-400 hover:underline text-[10px] font-bold flex items-center gap-1">
+                  <i data-lucide="rotate-ccw" class="w-2.5 h-2.5"></i> Mặc định
+                </button>
+              </div>
               <div class="px-3 py-1">
                 <select id="mobile-storm-select" onchange="StormSimulator.applyScenario(this.value); closeHeaderMenu();" class="w-full p-1.5 bg-slate-100 dark:bg-slate-800 rounded text-xs outline-none">
                   <option value="clear">☀️ Tạnh (0mm)</option>
@@ -200,15 +221,15 @@
 
     <!-- Left Sidebar Control Panel (Thành viên 1) -->
 
-    <aside id="sidebar-panel" class="fixed inset-x-0 bottom-0 top-[48px] sm:top-0 sm:relative sm:inset-auto w-full sm:w-[420px] bg-white shadow-2xl z-30 flex flex-col h-[calc(100vh-48px)] sm:h-full border-r border-slate-200 transition-transform duration-300 translate-y-0">
+    <aside id="sidebar-panel" class="fixed inset-x-0 bottom-0 top-[58px] sm:top-0 sm:relative sm:inset-auto w-full sm:w-[420px] bg-white shadow-2xl z-30 flex flex-col h-[calc(100vh-58px)] sm:h-full border-r border-slate-200 rounded-t-2xl sm:rounded-none transition-transform duration-300 translate-y-0">
 
       
 
       <!-- Mobile Bar: Drag indicator & Thu gọn xem bản đồ (sm:hidden) -->
 
-      <div class="sm:hidden flex items-center justify-between px-4 py-2.5 bg-slate-100 border-b border-slate-200 flex-shrink-0">
+      <div class="sm:hidden flex items-center justify-between px-4 py-2 bg-slate-100 border-b border-slate-200 rounded-t-2xl flex-shrink-0">
 
-        <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+        <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5" id="mobile-sidebar-title">
 
           <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-blue-600"></i> Bảng điều khiển tìm đường
 
@@ -1107,7 +1128,7 @@
        ======================================================== -->
 
   <!-- 1. Controller Bản đồ chính (Thành viên 1 & 2) -->
-  <script src="/static/js/map_core.js?v=6.2"></script>
+  <script src="/static/js/map_core.js?v=6.5"></script>
 
 
 
