@@ -1054,9 +1054,15 @@ function renderFloodPoints(data) {
 
     const drainageHtml = renderDrainageForecastHtml(fp);
 
+    let districtName = 'Hà Nội';
+    const districtMatch = name.match(/\((.*?)\)/);
+    if (districtMatch && districtMatch[1]) {
+      districtName = `${districtMatch[1]}, Hà Nội`;
+    }
+
     marker.bindPopup(`
-      <div class="text-xs space-y-1.5 p-1 min-w-[250px] max-w-[280px]">
-        <!-- Header: Tên trạm & Badge mức độ nguy hiểm -->
+      <div class="text-xs space-y-1.5 p-0.5 min-w-[250px] max-w-[275px] max-h-[385px] overflow-y-auto pr-0.5 custom-scrollbar">
+        <!-- Header: Tên trạm, Địa bàn & Badge mức độ nguy hiểm -->
         <div class="border-b border-slate-100 pb-1.5">
           <div class="flex items-start justify-between gap-1.5">
             <h4 class="font-bold text-slate-900 text-sm leading-tight flex-1">${name}</h4>
@@ -1064,9 +1070,12 @@ function renderFloodPoints(data) {
               ${statusLabel}
             </span>
           </div>
-          <div class="text-[11px] text-slate-500 flex items-center gap-1 mt-1">
-            <svg class="w-3 h-3 text-cyan-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-            <span class="font-mono text-slate-600">${lat.toFixed(4)}°B, ${lng.toFixed(4)}°Đ</span>
+          <div class="text-[11px] text-slate-500 flex items-center justify-between gap-1 mt-1">
+            <div class="flex items-center gap-1 min-w-0" title="Địa bàn: ${districtName}">
+              <svg class="w-3 h-3 text-cyan-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+              <span class="truncate text-slate-600 font-medium">${districtName}</span>
+            </div>
+            <span class="font-mono text-slate-500 text-[10px] flex-shrink-0">${lat.toFixed(4)}°B, ${lng.toFixed(4)}°Đ</span>
           </div>
         </div>
 
@@ -1105,7 +1114,13 @@ function renderFloodPoints(data) {
           </button>
         </div>
       </div>
-    `);
+    `, {
+      maxWidth: 290,
+      minWidth: 260,
+      autoPan: true,
+      autoPanPadding: [25, 25],
+      className: 'flood-custom-popup'
+    });
 
     floodMarkersLayer.addLayer(marker);
   });
