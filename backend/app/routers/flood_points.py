@@ -144,7 +144,7 @@ DEFAULT_FLOOD_POINTS = [
 
     {"id": 44, "name": "Giải Phóng (Trước BX Giáp Bát)", "sensor_id": "SENSOR-044", "threshold_cm": 20, "lng": 105.8425, "lat": 20.9785, "depth_cm": 28.0, "last_reading_at": None},
 
-    {"id": 45, "name": "Định Công (Cầu Định Công qua Sông Lừ)", "sensor_id": "SENSOR-045", "threshold_cm": 20, "lng": 105.8340, "lat": 20.9875, "depth_cm": 24.0, "last_reading_at": None},
+    {"id": 45, "name": "Định Công (Cầu Định Công qua Sông Lừ)", "sensor_id": "SENSOR-045", "sensor_status": "offline", "threshold_cm": 20, "lng": 105.8340, "lat": 20.9875, "depth_cm": 24.0, "last_reading_at": None},
 
     {"id": 46, "name": "Tân Mai (Chợ Tân Mai)", "sensor_id": "SENSOR-046", "threshold_cm": 20, "lng": 105.8520, "lat": 20.9890, "depth_cm": 17.0, "last_reading_at": None},
 
@@ -347,23 +347,37 @@ def is_reading_stale(last_reading_at: Any) -> bool:
 def determine_point_status(
     depth: Optional[float],
     threshold: int = 20,
-    last_reading_at: Optional[Any] = None
+    last_reading_at: Optional[Any] = None,
+    sensor_status: Optional[str] = None,
 ) -> str:
     """
-    Phân loại trạng thái điểm quan trắc theo yêu cầu:
-    1. Không có bản ghi quan trắc: 'no_data'
-    2. Dữ liệu không hợp lệ (depth < 0): 'invalid'
-    3. Cảm biến mất kết nối / dữ liệu cũ quá SENSOR_STALE_HOURS: 'offline'
-    4. Mực nước < 5cm (kể cả 0cm thực tế): 'safe' (An toàn)
-    5. Từ 5cm đến dưới threshold: 'warning' (Chú ý)
-    6. Từ threshold trở lên: 'danger' (Nguy hiểm)
+    Phân loại chính xác 5 trạng thái theo yêu cầu:
+    1. Cảm biến mất kết nối: sensor_status in ('offline', 'disconnected', 'lost_signal') -> 'offline'
+    2. Dữ liệu không hợp lệ: depth < 0 -> 'invalid'
+    3. Không có dữ liệu: depth is None (chưa có bản ghi quan trắc) -> 'no_data'
+    4. Dữ liệu cũ: có bản ghi nhưng đã quá thời gian cập nhật cho phép (SENSOR_STALE_HOURS) -> 'stale'
+    5. Dữ liệu mới (trong hạn cho phép):
+       - depth < 5.0cm: 'safe' (An toàn, kể cả 0cm thực tế)
+       - depth < threshold: 'warning' (Chú ý, 5cm đến < 20cm)
+       - depth >= threshold: 'danger' (Nguy hiểm, từ 20cm trở lên)
     """
+    # 1. Căn cứ mất kết nối từ hệ thống
+    if sensor_status in ("offline", "disconnected", "lost_signal"):
+        return "offline"
+
+    # 2. Dữ liệu không hợp lệ (số âm hoặc sai định dạng)
+    if depth is not None and depth < 0:
+        return "invalid"
+
+    # 3. Không có dữ liệu quan trắc (chưa có bản ghi)
     if depth is None:
         return "no_data"
-    if depth < 0:
-        return "invalid"
+
+    # 4. Dữ liệu cũ (có số đo nhưng quá thời gian cập nhật cho phép)
     if last_reading_at and is_reading_stale(last_reading_at):
-        return "offline"
+        return "stale"
+
+    # 5. Dữ liệu mới hợp lệ theo ngưỡng mực nước
     if depth < 5.0:
         return "safe"
     if depth < threshold:
@@ -388,6 +402,8 @@ def get_fallback_flood_points() -> list:
             pt["depth_cm"] = float(latest["depth_cm"]) if latest.get("depth_cm") is not None else None
             pt["last_reading_at"] = latest.get("recorded_at")
             pt["source"] = latest.get("source", "sensor")
+            if latest.get("sensor_status"):
+                pt["sensor_status"] = latest["sensor_status"]
         else:
             pt["source"] = "sensor" if pt.get("sensor_id") else None
             if pt.get("last_reading_at") == "STALE_MOCK":
@@ -414,12 +430,14 @@ def _to_feature(r: dict) -> dict:
     if not source and r.get("sensor_id"):
         source = "sensor"
 
+    sensor_status = r.get("sensor_status") or ("connected" if r.get("sensor_id") else "no_sensor")
+
     if hasattr(last_reading_at, "isoformat"):
         last_reading_str = last_reading_at.isoformat()
     else:
         last_reading_str = str(last_reading_at) if last_reading_at is not None else None
 
-    status = determine_point_status(depth, threshold, last_reading_at)
+    status = determine_point_status(depth, threshold, last_reading_at, sensor_status)
 
     return {
         "type": "Feature",
@@ -428,11 +446,13 @@ def _to_feature(r: dict) -> dict:
             "id": r["id"],
             "name": r["name"],
             "sensor_id": r.get("sensor_id"),
+            "sensor_status": sensor_status,
             "source": source,
             "threshold_cm": threshold,
             "depth_cm": depth,
             "status": status,
             "last_reading_at": last_reading_str,
+            "stale_hours_threshold": config.SENSOR_STALE_HOURS,
         },
     }
 

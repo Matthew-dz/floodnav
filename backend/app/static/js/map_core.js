@@ -392,6 +392,7 @@ function getFloodStats() {
   let dangerCount = 0;
   let offlineCount = 0;
   let noDataCount = 0;
+  let staleCount = 0;
   let latestTime = null;
 
   points.forEach(p => {
@@ -399,6 +400,7 @@ function getFloodStats() {
     const isOffline = p.status === 'offline';
     const isNoData = p.status === 'no_data' || !hasValidDepth;
     const isInvalid = p.status === 'invalid';
+    const isStale = p.status === 'stale';
 
     if (p.last_reading_at) {
       const t = new Date(p.last_reading_at);
@@ -411,6 +413,8 @@ function getFloodStats() {
       offlineCount++;
     } else if (isNoData || isInvalid) {
       noDataCount++;
+    } else if (isStale) {
+      staleCount++;
     } else {
       validCount++;
       const depth = Number(p.depth_cm);
@@ -432,6 +436,7 @@ function getFloodStats() {
     danger: dangerCount,
     offline: offlineCount,
     noData: noDataCount,
+    stale: staleCount,
     latestTime: latestTime ? latestTime.toISOString() : null
   };
 }
@@ -469,12 +474,13 @@ function updateSidebarFloodSummary() {
   if (dangEl) dangEl.innerText = stats.danger;
   if (ratioEl) ratioEl.innerText = `${stats.valid} / ${stats.total} trạm`;
 
-  const staleTotal = stats.offline + stats.noData;
+  const staleTotal = stats.offline + stats.noData + (stats.stale || 0);
   if (staleNoteEl && staleCountEl) {
     if (staleTotal > 0) {
       staleNoteEl.classList.remove('hidden');
       const parts = [];
-      if (stats.offline > 0) parts.push(`${stats.offline} mất tín hiệu`);
+      if (stats.stale > 0) parts.push(`${stats.stale} dữ liệu cũ`);
+      if (stats.offline > 0) parts.push(`${stats.offline} mất kết nối`);
       if (stats.noData > 0) parts.push(`${stats.noData} chưa có DL`);
       staleCountEl.innerText = `${staleTotal} trạm (${parts.join(', ')})`;
     } else {
@@ -508,13 +514,15 @@ function renderFloodPoints(data) {
       id: f.properties.id,
       name: f.properties.name,
       sensor_id: f.properties.sensor_id,
+      sensor_status: f.properties.sensor_status,
       source: f.properties.source,
       lng: f.geometry.coordinates[0],
       lat: f.geometry.coordinates[1],
       depth_cm: f.properties.depth_cm,
       threshold_cm: f.properties.threshold_cm,
       status: f.properties.status,
-      last_reading_at: f.properties.last_reading_at
+      last_reading_at: f.properties.last_reading_at,
+      stale_hours_threshold: f.properties.stale_hours_threshold
     }));
   } else if (Array.isArray(data)) {
     floodPoints = data;
@@ -536,7 +544,7 @@ function renderFloodPoints(data) {
   floodCirclesLayer.clearLayers();
 
   floodPoints.forEach(fp => {
-    const { id, name, sensor_id, source, lng, lat, depth_cm, threshold_cm, status, last_reading_at } = fp;
+    const { id, name, sensor_id, sensor_status, source, lng, lat, depth_cm, threshold_cm, status, last_reading_at } = fp;
     const hasValidDepth = (depth_cm !== null && depth_cm !== undefined && !isNaN(Number(depth_cm)));
     const depth = hasValidDepth ? Number(depth_cm) : null;
 
@@ -558,37 +566,55 @@ function renderFloodPoints(data) {
     let statusLabel = 'An toàn';
     let badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300';
     let depthColorClass = 'text-emerald-600';
-    let depthDisplay = hasValidDepth ? `${depth} cm` : 'Chưa có dữ liệu';
+    let depthDisplay = hasValidDepth ? `${depth} cm` : 'Chưa có dữ liệu quan trắc';
     let timeDisplay = formatReadingTime(last_reading_at);
 
-    if (status === 'no_data' || !hasValidDepth) {
-      bgColor = '#94a3b8'; // Xám bạc: Chưa có dữ liệu
+    if (status === 'no_data' || depth === null || depth === undefined) {
+      // 3. KHÔNG CÓ DỮ LIỆU: Chưa có bản ghi quan trắc
+      bgColor = '#94a3b8'; // Xám bạc
       pulseClass = '';
       markerText = '--';
       statusLabel = 'Chưa có DL';
       badgeClass = 'bg-slate-100 text-slate-700 border-slate-300';
       depthColorClass = 'text-slate-500';
       depthDisplay = 'Chưa có dữ liệu quan trắc';
-      timeDisplay = 'Chưa có số đo';
-    } else if (status === 'offline') {
-      bgColor = '#64748b'; // Xám đậm: Mất tín hiệu
-      pulseClass = '';
-      markerText = hasValidDepth ? `${Math.round(depth)}cm` : 'OFF';
-      statusLabel = 'Mất tín hiệu';
-      badgeClass = 'bg-slate-200 text-slate-800 border-slate-400';
-      depthColorClass = 'text-slate-600';
-      depthDisplay = hasValidDepth ? `${depth} cm (Dữ liệu cũ)` : 'Mất tín hiệu';
-      timeDisplay = `${formatReadingTime(last_reading_at)} (Quá 24h)`;
-    } else if (status === 'invalid') {
-      bgColor = '#64748b'; // Xám: Dữ liệu lỗi
+      timeDisplay = 'Chưa có bản ghi';
+    } else if (status === 'invalid' || depth < 0) {
+      // 5. DỮ LIỆU KHÔNG HỢP LỆ: Giá trị quan trắc sai định dạng hoặc âm
+      bgColor = '#e11d48'; // Đỏ hồng
       pulseClass = '';
       markerText = 'ERR';
-      statusLabel = 'Lỗi DL';
-      badgeClass = 'bg-slate-200 text-slate-800 border-slate-400';
+      statusLabel = 'Dữ liệu lỗi';
+      badgeClass = 'bg-rose-100 text-rose-800 border-rose-300';
       depthColorClass = 'text-rose-600';
-      depthDisplay = `Không hợp lệ (${depth} cm)`;
+      depthDisplay = `Dữ liệu không hợp lệ (${depth} cm)`;
       timeDisplay = formatReadingTime(last_reading_at);
+    } else if (status === 'offline') {
+      // 4. MẤT KẾT NỐI: Backend xác định cảm biến không kết nối hoặc mất tín hiệu
+      bgColor = '#64748b'; // Xám đậm
+      pulseClass = '';
+      markerText = 'OFF';
+      statusLabel = 'Mất kết nối';
+      badgeClass = 'bg-slate-200 text-slate-800 border-slate-400';
+      depthColorClass = 'text-slate-600';
+      depthDisplay = 'Cảm biến mất kết nối';
+      timeDisplay = last_reading_at ? `${formatReadingTime(last_reading_at)} (Mất tín hiệu)` : 'Mất tín hiệu';
+      if (sourceDisplay.indexOf('Mất kết nối') === -1) {
+        sourceDisplay += ' - Mất kết nối';
+      }
+    } else if (status === 'stale') {
+      // 2. DỮ LIỆU CŨ: Có bản ghi nhưng đã quá thời gian cập nhật cho phép
+      bgColor = '#d97706'; // Vàng cam hổ phách
+      pulseClass = '';
+      radiusColor = '#d97706';
+      markerText = `${Math.round(depth)}cm`;
+      statusLabel = 'Dữ liệu cũ';
+      badgeClass = 'bg-amber-100 text-amber-900 border-amber-300';
+      depthColorClass = 'text-amber-700';
+      depthDisplay = `${depth} cm (Dữ liệu cũ)`;
+      timeDisplay = `${formatReadingTime(last_reading_at)} (Quá 24h)`;
     } else if (status === 'warning') {
+      // 1b. DỮ LIỆU MỚI: Chú ý (5cm đến < 20cm)
       bgColor = '#f59e0b'; // Vàng: 5-20cm
       pulseClass = 'flood-pulse-warning';
       radiusColor = '#f59e0b';
@@ -599,6 +625,7 @@ function renderFloodPoints(data) {
       depthDisplay = `${depth} cm`;
       timeDisplay = formatReadingTime(last_reading_at);
     } else if (status === 'danger') {
+      // 1c. DỮ LIỆU MỚI: Nguy hiểm (>= 20cm)
       bgColor = '#ef4444'; // Đỏ: >=20cm
       pulseClass = 'flood-pulse-danger';
       radiusColor = '#ef4444';
@@ -609,7 +636,7 @@ function renderFloodPoints(data) {
       depthDisplay = `${depth} cm`;
       timeDisplay = formatReadingTime(last_reading_at);
     } else {
-      // status === 'safe'
+      // 1a. DỮ LIỆU MỚI: An toàn (< 5cm, kể cả 0cm thực tế)
       bgColor = '#10b981'; // Xanh lá: an toàn
       pulseClass = '';
       radiusColor = '#10b981';
@@ -621,8 +648,8 @@ function renderFloodPoints(data) {
       timeDisplay = formatReadingTime(last_reading_at);
     }
 
-    // Hiệu ứng vùng sóng ngập chỉ vẽ khi có dữ liệu thực tế và mực nước >= 5cm
-    if (hasValidDepth && depth >= 5 && status !== 'no_data' && status !== 'offline') {
+    // Hiệu ứng vùng sóng ngập chỉ vẽ khi có dữ liệu mới/cũ hợp lệ và mực nước >= 5cm
+    if (hasValidDepth && depth >= 5 && status !== 'no_data' && status !== 'offline' && status !== 'invalid') {
       const radiusMeters = Math.min(100 + depth * 2.5, 300);
       
       const outerCircle = L.circle([lat, lng], {
@@ -631,7 +658,7 @@ function renderFloodPoints(data) {
         fillColor: radiusColor,
         fillOpacity: depth >= 20 ? 0.22 : 0.14,
         weight: depth >= 20 ? 2 : 1,
-        dashArray: depth >= 20 ? '5, 5' : '8, 8',
+        dashArray: (depth >= 20 || status === 'stale') ? '5, 5' : '8, 8',
         className: depth >= 20 ? 'animated-flood-ring' : ''
       });
       outerCircle.bindTooltip(`<b>${fp.name}</b><br/>Mực nước: ${depth} cm | Ngưỡng ngập: ${threshold_cm} cm`, { direction: 'top' });
@@ -666,6 +693,85 @@ function renderFloodPoints(data) {
       thresholdCm: threshold_cm
     });
 
+    // Xử lý khối trung tâm theo đúng 5 trạng thái
+    let centerBoxHtml = '';
+    if (status === 'no_data' || depth === null || depth === undefined) {
+      centerBoxHtml = `
+        <div class="bg-slate-50 rounded-lg p-2.5 border border-slate-200">
+          <span class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block">Tình trạng quan trắc</span>
+          <div class="flex items-center gap-1.5 mt-1 text-slate-700 font-bold text-xs">
+            <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>Chưa có dữ liệu quan trắc</span>
+          </div>
+          <p class="text-[10px] text-slate-400 mt-0.5">Trạm chưa ghi nhận bản ghi đo mực nước nào</p>
+        </div>
+      `;
+    } else if (status === 'invalid' || depth < 0) {
+      centerBoxHtml = `
+        <div class="bg-rose-50 rounded-lg p-2.5 border border-rose-200">
+          <span class="text-[10px] uppercase tracking-wider font-semibold text-rose-500 block">Thông báo quan trắc</span>
+          <div class="flex items-center gap-1.5 mt-1 text-rose-700 font-bold text-xs">
+            <svg class="w-4 h-4 text-rose-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <span>Dữ liệu quan trắc không hợp lệ</span>
+          </div>
+          <p class="text-[10px] text-rose-600 mt-0.5">Giá trị đo sai định dạng: <code class="font-mono bg-rose-100 px-1 rounded">${depth} cm</code></p>
+        </div>
+      `;
+    } else if (status === 'offline') {
+      centerBoxHtml = `
+        <div class="bg-slate-100 rounded-lg p-2.5 border border-slate-300">
+          <span class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block">Trạng thái cảm biến</span>
+          <div class="flex items-center gap-1.5 mt-1 text-slate-800 font-bold text-xs">
+            <svg class="w-4 h-4 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 4.243a9 9 0 01-2.828-5.657m0 0l2.828 2.829m-2.828-2.829L3 3m5.464 5.464a5 5 0 000 7.072"></path></svg>
+            <span>Cảm biến mất kết nối</span>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-0.5">Hệ thống ghi nhận mất tín hiệu đường truyền</p>
+          ${hasValidDepth ? `<div class="text-[10px] text-slate-600 mt-1 pt-1 border-t border-slate-200">Số đo trước khi mất tín hiệu: <b class="font-mono text-slate-700">${depth} cm</b></div>` : ''}
+        </div>
+      `;
+    } else if (status === 'stale') {
+      centerBoxHtml = `
+        <div class="bg-amber-50 rounded-lg p-2.5 border border-amber-200">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] uppercase tracking-wider font-bold text-amber-800 flex items-center gap-1">
+              <svg class="w-3.5 h-3.5 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              Cảnh báo: Dữ liệu đã cũ
+            </span>
+            <span class="text-[10px] text-amber-700 font-medium bg-amber-100 px-1.5 py-0.2 rounded">Quá 24h</span>
+          </div>
+          <div class="flex items-baseline justify-between mt-1.5 pt-1.5 border-t border-amber-200/60">
+            <div>
+              <span class="text-[10px] text-slate-500 block">Số đo trước đó:</span>
+              <div class="flex items-baseline gap-1">
+                <span class="text-2xl font-black text-amber-800">${Math.round(depth)}</span>
+                <span class="text-xs font-bold text-amber-700">cm</span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-[10px] uppercase tracking-wider font-medium text-slate-400 block">Ngưỡng tràn</span>
+              <span class="text-xs font-bold text-slate-700 font-mono">${threshold_cm} cm</span>
+            </div>
+          </div>
+        </div>
+      `;
+    } else {
+      centerBoxHtml = `
+        <div class="bg-slate-50 rounded-lg p-2 border border-slate-100 flex items-center justify-between">
+          <div>
+            <span class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block">Mực nước hiện tại</span>
+            <div class="flex items-baseline gap-1">
+              <span class="text-2xl font-black ${depthColorClass}">${Math.round(depth)}</span>
+              <span class="text-xs font-bold text-slate-500">cm</span>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-[10px] uppercase tracking-wider font-medium text-slate-400 block">Ngưỡng tràn</span>
+            <span class="text-xs font-bold text-slate-700 font-mono">${threshold_cm} cm</span>
+          </div>
+        </div>
+      `;
+    }
+
     marker.bindPopup(`
       <div class="text-xs space-y-2 p-1 min-w-[230px] max-w-[260px]">
         <!-- Header: Tên trạm & Badge mức độ nguy hiểm -->
@@ -682,24 +788,8 @@ function renderFloodPoints(data) {
           </div>
         </div>
 
-        <!-- Mực nước hiện tại & Ngưỡng chịu đựng -->
-        <div class="bg-slate-50 rounded-lg p-2 border border-slate-100 flex items-center justify-between">
-          <div>
-            <span class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block">Mực nước hiện tại</span>
-            ${hasValidDepth ? `
-              <div class="flex items-baseline gap-1">
-                <span class="text-2xl font-black ${depthColorClass}">${Math.round(depth)}</span>
-                <span class="text-xs font-bold text-slate-500">cm</span>
-              </div>
-            ` : `
-              <span class="text-xs font-bold ${depthColorClass} mt-0.5 block">${depthDisplay}</span>
-            `}
-          </div>
-          <div class="text-right">
-            <span class="text-[10px] uppercase tracking-wider font-medium text-slate-400 block">Ngưỡng tràn</span>
-            <span class="text-xs font-bold text-slate-700 font-mono">${threshold_cm} cm</span>
-          </div>
-        </div>
+        <!-- Khối hiển thị trung tâm xử lý theo 5 trạng thái -->
+        ${centerBoxHtml}
 
         <!-- Thông tin chi tiết: Thời gian cập nhật & Nguồn dữ liệu -->
         <div class="space-y-1 text-[11px] text-slate-600 border-b border-slate-100 pb-1.5">
@@ -807,10 +897,13 @@ function renderPointsList() {
       badgeText = 'Chưa có DL';
     } else if (status === 'offline') {
       badgeBg = 'bg-slate-200 text-slate-800 border border-slate-400';
-      badgeText = 'Mất tín hiệu';
+      badgeText = 'Mất kết nối';
     } else if (status === 'invalid') {
-      badgeBg = 'bg-slate-200 text-slate-800 border border-slate-400';
-      badgeText = 'Lỗi DL';
+      badgeBg = 'bg-rose-100 text-rose-800 border border-rose-300';
+      badgeText = 'Dữ liệu lỗi';
+    } else if (status === 'stale') {
+      badgeBg = 'bg-amber-100 text-amber-900 border border-amber-300';
+      badgeText = 'Dữ liệu cũ';
     } else if (status === 'warning') {
       badgeBg = 'bg-amber-100 text-amber-800';
       badgeText = 'Chú ý';
@@ -909,7 +1002,7 @@ function updateViewportFloodAlert() {
   const inView = floodPoints.filter(fp => bounds.contains([fp.lat, fp.lng]));
   const dangerInView = inView.filter(fp => fp.status === 'danger');
   const warningInView = inView.filter(fp => fp.status === 'warning');
-  const offlineOrNoDataInView = inView.filter(fp => fp.status === 'offline' || fp.status === 'no_data' || fp.status === 'invalid');
+  const offlineOrNoDataInView = inView.filter(fp => fp.status === 'offline' || fp.status === 'no_data' || fp.status === 'invalid' || fp.status === 'stale');
   const safeInView = inView.filter(fp => fp.status === 'safe');
 
   alertEl.classList.remove('hidden');
@@ -961,7 +1054,7 @@ function updateViewportFloodAlert() {
       alertEl.className = baseClass + 'bg-slate-50/95 border-slate-300 text-slate-800 shadow-slate-200/50';
       alertIcon.className = 'p-1 rounded-full bg-slate-200 text-slate-700 flex-shrink-0';
       alertIcon.innerHTML = '<i data-lucide="info" class="w-4 h-4"></i>';
-      alertText.innerHTML = `Khu vực có <b>${safeInView.length}</b> trạm an toàn, <b>${offlineOrNoDataInView.length}</b> trạm mất tín hiệu / chưa có dữ liệu`;
+      alertText.innerHTML = `Khu vực có <b>${safeInView.length}</b> trạm an toàn, <b>${offlineOrNoDataInView.length}</b> trạm mất tín hiệu / dữ liệu cũ / chưa có dữ liệu`;
     }
     alertBtn.classList.add('hidden');
   } else {
