@@ -39,12 +39,27 @@ def edge_cost(length: float, flood: Optional[dict], vehicle: str, mode: str) -> 
 
 
 def best_edge(G, flood_map: dict, u, v, vehicle: str, mode: str):
-    """Trong các đoạn song song u->v, chọn đoạn rẻ nhất. Trả về (key, cost)."""
+    """Trong các đoạn song song u->v, chọn đoạn có chi phí phù hợp nhất với A*.
+    Nếu có nhiều đoạn cùng chi phí nhỏ nhất, ưu tiên đoạn có thuộc tính hình học (geometry) chi tiết.
+    Trả về (key, cost).
+    """
     best_k, best_c = None, None
+    best_has_geom = False
     for k, data in G[u][v].items():
         c = edge_cost(data.get("length", 0.0), flood_map.get((u, v, k)), vehicle, mode)
-        if c is not None and (best_c is None or c < best_c):
-            best_k, best_c = k, c
+        if c is None:
+            continue
+        has_geom = ("geometry" in data and data["geometry"] is not None)
+        if best_c is None or c < best_c:
+            best_k, best_c, best_has_geom = k, c, has_geom
+        elif math.isclose(c, best_c, rel_tol=1e-7, abs_tol=1e-7):
+            if not best_has_geom and has_geom:
+                best_k, best_c, best_has_geom = k, c, True
+
+    if best_k is None and G[u][v]:
+        best_k = min(G[u][v].keys(), key=lambda k: G[u][v][k].get("length", float("inf")))
+        best_c = G[u][v][best_k].get("length", 0.0)
+
     return best_k, best_c
 
 
@@ -73,15 +88,30 @@ def find_path(G, flood_map: dict, origin, dest, vehicle: str, mode: str) -> list
 
 # ---------------------------------------------------------------- mô tả lộ trình
 def edge_coords(G, u, v, data) -> list:
-    """Danh sách [lng, lat] của một đoạn đường, theo chiều u -> v."""
+    """Danh sách toạ độ [lng, lat] của một đoạn đường, theo đúng chiều di chuyển u -> v.
+    Bảo toàn toàn bộ các điểm uốn cong trung gian của LineString và chuẩn hóa điểm đầu/cuối
+    trùng khớp hoàn toàn với hai nút giao u và v.
+    """
     ux, uy = G.nodes[u]["x"], G.nodes[u]["y"]
+    vx, vy = G.nodes[v]["x"], G.nodes[v]["y"]
     geom = data.get("geometry")
     if geom is None:
-        return [[ux, uy], [G.nodes[v]["x"], G.nodes[v]["y"]]]
-    pts = [[x, y] for x, y in geom.coords]
+        return [[ux, uy], [vx, vy]]
+
+    pts = [[float(x), float(y)] for x, y in geom.coords]
+    if len(pts) < 2:
+        return [[ux, uy], [vx, vy]]
+
+    # Kiểm tra chiều lưu trữ của LineString so với hướng di chuyển u -> v
     d_first = (pts[0][0] - ux) ** 2 + (pts[0][1] - uy) ** 2
     d_last = (pts[-1][0] - ux) ** 2 + (pts[-1][1] - uy) ** 2
-    return pts[::-1] if d_first > d_last else pts
+    if d_first > d_last:
+        pts = pts[::-1]
+
+    # Chuẩn hoá điểm đầu là node u và điểm cuối là node v để hai cạnh liên tiếp nối khít 100%
+    pts[0] = [ux, uy]
+    pts[-1] = [vx, vy]
+    return pts
 
 
 def _street_name(data) -> Optional[str]:
@@ -92,6 +122,33 @@ def _street_name(data) -> Optional[str]:
 
 
 def describe_route(G, flood_map: dict, path: list, vehicle: str, mode: str) -> dict:
+    speed_m_per_min = config.SPEED_KMH[vehicle] * 1000 / 60
+    if not path:
+        return {
+            "found": False,
+            "mode": mode,
+            "reason": "Không tìm thấy đường đi.",
+            "distance_m": 0,
+            "duration_min": 0.0,
+            "cost": 0,
+            "passable": True,
+            "flood_warnings": [],
+            "geometry": {"type": "LineString", "coordinates": []},
+        }
+
+    if len(path) == 1:
+        single_pt = [round(G.nodes[path[0]]["x"], 6), round(G.nodes[path[0]]["y"], 6)]
+        return {
+            "found": True,
+            "mode": mode,
+            "distance_m": 0,
+            "duration_min": 0.0,
+            "cost": 0,
+            "passable": True,
+            "flood_warnings": [],
+            "geometry": {"type": "LineString", "coordinates": [single_pt]},
+        }
+
     coords, length, cost = [], 0.0, 0.0
     warnings = {}
     passable = True
@@ -100,9 +157,14 @@ def describe_route(G, flood_map: dict, path: list, vehicle: str, mode: str) -> d
         k, c = best_edge(G, flood_map, u, v, vehicle, mode)
         data = G[u][v][k]
         length += data.get("length", 0.0)
-        cost += c
+        cost += c if c is not None else data.get("length", 0.0)
         seg = edge_coords(G, u, v, data)
-        coords.extend(seg[1:] if coords and coords[-1] == seg[0] else seg)
+        if not coords:
+            coords.extend(seg)
+        else:
+            # Hai cạnh liên tiếp luôn tiếp giáp tại node u: coords[-1] == seg[0] == [ux, uy]
+            # Nối tiếp seg[1:] để duy trì mảng toạ độ liên tục, không trùng lặp và không đứt đoạn
+            coords.extend(seg[1:])
 
         fl = flood_map.get((u, v, k))
         if fl:
@@ -116,7 +178,6 @@ def describe_route(G, flood_map: dict, path: list, vehicle: str, mode: str) -> d
             })
             w["street"] = w["street"] or _street_name(data)
 
-    speed_m_per_min = config.SPEED_KMH[vehicle] * 1000 / 60
     return {
         "found": True,
         "mode": mode,

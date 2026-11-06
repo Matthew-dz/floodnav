@@ -18,7 +18,7 @@ LEVEL_DEPTH_CM = {"light": 10, "medium": 25, "heavy": 40}
 # Tốc độ trung bình ước tính trong phố (km/h), chỉ dùng để ước lượng thời gian
 SPEED_KMH = {"motorbike": 25, "car": 30}
 
-MAX_SNAP_M = 50000           # điểm xuất phát/đích cách đường gần nhất quá 50 km thì mới báo lỗi
+MAX_SNAP_M = 1000           # điểm xuất phát/đích cách đường gần nhất quá 1 km thì báo lỗi
 
 # --- Cấu hình trạm quan trắc & cảm biến mực nước ---
 SENSOR_STALE_HOURS = 24      # Nếu quá 24h không có dữ liệu số đo mới -> coi là mất tín hiệu (offline)

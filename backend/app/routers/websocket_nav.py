@@ -152,6 +152,13 @@ def check_route_and_reroute(session: NavSession) -> dict:
     o_node, o_dist = rg.nearest_node(curr_lng, curr_lat)
     d_node, d_dist = rg.nearest_node(session.dest_lng, session.dest_lat)
 
+    if max(o_dist, d_dist) > config.MAX_SNAP_M:
+        return {
+            "type": "route_status",
+            "status": "error",
+            "message": f"Vị trí xe hoặc điểm đến nằm ngoài phạm vi mạng lưới đường bộ (> {config.MAX_SNAP_M}m)."
+        }
+
     if o_node == d_node:
         return {
             "type": "route_status",
@@ -236,20 +243,6 @@ def check_route_and_reroute(session: NavSession) -> dict:
     try:
         new_path = routing.find_path(rg.G, flood_map, o_node, d_node, session.vehicle, "safe")
         new_route_desc = routing.describe_route(rg.G, flood_map, new_path, session.vehicle, "safe")
-
-        # Nối toạ độ GPS xe hiện tại và điểm đích vào geometry lộ trình
-        if new_route_desc.get("found") and new_route_desc.get("geometry", {}).get("coordinates"):
-            coords = new_route_desc["geometry"]["coordinates"]
-            curr_pt = [round(curr_lng, 6), round(curr_lat, 6)]
-            dest_pt = [round(session.dest_lng, 6), round(session.dest_lat, 6)]
-            if coords and coords[0] != curr_pt:
-                coords.insert(0, curr_pt)
-            if coords and coords[-1] != dest_pt:
-                coords.append(dest_pt)
-            speed_m_per_min = config.SPEED_KMH[session.vehicle] * 1000 / 60
-            total_dist = round(new_route_desc["distance_m"] + o_dist + d_dist)
-            new_route_desc["distance_m"] = total_dist
-            new_route_desc["duration_min"] = round(total_dist / speed_m_per_min, 1)
 
         # Cập nhật lộ trình an toàn mới vào session
         session.current_path = new_path
