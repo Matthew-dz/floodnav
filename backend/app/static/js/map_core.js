@@ -507,6 +507,8 @@ function renderFloodPoints(data) {
     floodPoints = data.features.map(f => ({
       id: f.properties.id,
       name: f.properties.name,
+      sensor_id: f.properties.sensor_id,
+      source: f.properties.source,
       lng: f.geometry.coordinates[0],
       lat: f.geometry.coordinates[1],
       depth_cm: f.properties.depth_cm,
@@ -534,9 +536,20 @@ function renderFloodPoints(data) {
   floodCirclesLayer.clearLayers();
 
   floodPoints.forEach(fp => {
-    const { id, name, lng, lat, depth_cm, threshold_cm, status, last_reading_at } = fp;
+    const { id, name, sensor_id, source, lng, lat, depth_cm, threshold_cm, status, last_reading_at } = fp;
     const hasValidDepth = (depth_cm !== null && depth_cm !== undefined && !isNaN(Number(depth_cm)));
     const depth = hasValidDepth ? Number(depth_cm) : null;
+
+    let sourceDisplay = 'Cảm biến quan trắc';
+    if (source === 'sensor') {
+      sourceDisplay = sensor_id ? `Cảm biến IoT (${sensor_id})` : 'Cảm biến IoT';
+    } else if (source === 'crowd') {
+      sourceDisplay = 'Báo cáo cộng đồng';
+    } else if (source === 'ai') {
+      sourceDisplay = 'Mô hình AI dự báo';
+    } else if (sensor_id) {
+      sourceDisplay = `Cảm biến IoT (${sensor_id})`;
+    }
 
     let bgColor = '#10b981'; // Xanh lá: an toàn
     let pulseClass = '';
@@ -654,30 +667,60 @@ function renderFloodPoints(data) {
     });
 
     marker.bindPopup(`
-      <div class="text-xs space-y-1.5 p-1 min-w-[210px]">
-        <div class="flex items-start justify-between gap-1.5 border-b border-slate-100 pb-1.5">
-          <h4 class="font-bold text-slate-900 text-sm leading-tight">${name}</h4>
-          <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${badgeClass} flex-shrink-0">
-            ${statusLabel}
-          </span>
+      <div class="text-xs space-y-2 p-1 min-w-[230px] max-w-[260px]">
+        <!-- Header: Tên trạm & Badge mức độ nguy hiểm -->
+        <div class="border-b border-slate-100 pb-1.5">
+          <div class="flex items-start justify-between gap-1.5">
+            <h4 class="font-bold text-slate-900 text-sm leading-tight flex-1">${name}</h4>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass} flex-shrink-0 shadow-xs">
+              ${statusLabel}
+            </span>
+          </div>
+          <div class="text-[11px] text-slate-500 flex items-center gap-1 mt-1">
+            <svg class="w-3 h-3 text-cyan-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            <span class="font-mono text-slate-600">${lat.toFixed(4)}°B, ${lng.toFixed(4)}°Đ</span>
+          </div>
         </div>
-        <div class="space-y-1 text-slate-600 text-xs">
-          <p class="flex justify-between items-center">
-            <span>Mực nước:</span>
-            <b class="font-mono ${depthColorClass}">${depthDisplay}</b>
-          </p>
-          <p class="flex justify-between items-center text-slate-500 text-[11px]">
-            <span>Ngưỡng chịu đựng:</span>
-            <span>${threshold_cm} cm</span>
-          </p>
-          <p class="flex justify-between items-center text-slate-500 text-[11px] border-t border-slate-100 pt-1">
-            <span>Cập nhật:</span>
-            <span class="font-mono text-slate-700">${timeDisplay}</span>
-          </p>
+
+        <!-- Mực nước hiện tại & Ngưỡng chịu đựng -->
+        <div class="bg-slate-50 rounded-lg p-2 border border-slate-100 flex items-center justify-between">
+          <div>
+            <span class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 block">Mực nước hiện tại</span>
+            ${hasValidDepth ? `
+              <div class="flex items-baseline gap-1">
+                <span class="text-2xl font-black ${depthColorClass}">${Math.round(depth)}</span>
+                <span class="text-xs font-bold text-slate-500">cm</span>
+              </div>
+            ` : `
+              <span class="text-xs font-bold ${depthColorClass} mt-0.5 block">${depthDisplay}</span>
+            `}
+          </div>
+          <div class="text-right">
+            <span class="text-[10px] uppercase tracking-wider font-medium text-slate-400 block">Ngưỡng tràn</span>
+            <span class="text-xs font-bold text-slate-700 font-mono">${threshold_cm} cm</span>
+          </div>
         </div>
-        <div class="pt-1.5 flex gap-1">
-          <button onclick="setAsRouteTarget(${lng}, ${lat}, 'origin')" class="flex-1 px-2 py-1 bg-emerald-500 text-white rounded text-[10px] font-semibold hover:bg-emerald-600 transition">Điểm Đi</button>
-          <button onclick="setAsRouteTarget(${lng}, ${lat}, 'destination')" class="flex-1 px-2 py-1 bg-rose-500 text-white rounded text-[10px] font-semibold hover:bg-rose-600 transition">Điểm Đến</button>
+
+        <!-- Thông tin chi tiết: Thời gian cập nhật & Nguồn dữ liệu -->
+        <div class="space-y-1 text-[11px] text-slate-600 border-b border-slate-100 pb-1.5">
+          <div class="flex justify-between items-center">
+            <span class="text-slate-500">Cập nhật:</span>
+            <span class="font-medium text-slate-700 font-mono">${timeDisplay}</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-slate-500">Nguồn dữ liệu:</span>
+            <span class="font-medium text-cyan-800 bg-cyan-50 px-1.5 py-0.5 rounded border border-cyan-100 text-[10px]">${sourceDisplay}</span>
+          </div>
+        </div>
+
+        <!-- Nút thao tác nhanh lộ trình -->
+        <div class="pt-0.5 flex gap-1.5">
+          <button onclick="setAsRouteTarget(${lng}, ${lat}, 'origin')" class="flex-1 px-2.5 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white rounded-md text-[11px] font-semibold transition flex items-center justify-center gap-1 shadow-sm">
+            <span>Điểm Đi</span>
+          </button>
+          <button onclick="setAsRouteTarget(${lng}, ${lat}, 'destination')" class="flex-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[11px] font-semibold transition flex items-center justify-center gap-1 shadow-sm">
+            <span>Điểm Đến</span>
+          </button>
         </div>
       </div>
     `);

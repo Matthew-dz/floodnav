@@ -310,10 +310,11 @@ SELECT_SQL = """
     SELECT fp.id, fp.name, fp.sensor_id, fp.threshold_cm,
            ST_X(fp.geom) AS lng, ST_Y(fp.geom) AS lat,
            r.depth_cm AS depth_cm,
-           r.recorded_at AS last_reading_at
+           r.recorded_at AS last_reading_at,
+           r.source AS source
     FROM flood_points fp
     LEFT JOIN LATERAL (
-        SELECT depth_cm, recorded_at FROM water_readings
+        SELECT depth_cm, recorded_at, source FROM water_readings
         WHERE point_id = fp.id
         ORDER BY recorded_at DESC LIMIT 1
     ) r ON TRUE
@@ -386,7 +387,9 @@ def get_fallback_flood_points() -> list:
             latest = latest_map[pid]
             pt["depth_cm"] = float(latest["depth_cm"]) if latest.get("depth_cm") is not None else None
             pt["last_reading_at"] = latest.get("recorded_at")
+            pt["source"] = latest.get("source", "sensor")
         else:
+            pt["source"] = "sensor" if pt.get("sensor_id") else None
             if pt.get("last_reading_at") == "STALE_MOCK":
                 # Giả lập dữ liệu cũ quá 24h
                 pt["last_reading_at"] = (now - timedelta(hours=36)).isoformat()
@@ -407,6 +410,9 @@ def _to_feature(r: dict) -> dict:
     depth = float(raw_depth) if raw_depth is not None else None
     threshold = int(r.get("threshold_cm", 20))
     last_reading_at = r.get("last_reading_at")
+    source = r.get("source")
+    if not source and r.get("sensor_id"):
+        source = "sensor"
 
     if hasattr(last_reading_at, "isoformat"):
         last_reading_str = last_reading_at.isoformat()
@@ -421,7 +427,8 @@ def _to_feature(r: dict) -> dict:
         "properties": {
             "id": r["id"],
             "name": r["name"],
-            "sensor_id": r["sensor_id"],
+            "sensor_id": r.get("sensor_id"),
+            "source": source,
             "threshold_cm": threshold,
             "depth_cm": depth,
             "status": status,
