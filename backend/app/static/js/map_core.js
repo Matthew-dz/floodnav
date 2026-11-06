@@ -1730,6 +1730,68 @@ function setPresetRoute(oLng, oLat, dLng, dLat, name) {
 
 
 
+// Fallback định tuyến đường bộ mở rộng (OSRM) khi điểm nằm ngoài vùng graph nội bộ hoặc backend chưa sẵn sàng
+async function fetchExtendedOsrmRoute(origin, destination, vehicle) {
+  if (!origin || !destination) return null;
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${destination.lng},${destination.lat}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) return null;
+
+    const r = data.routes[0];
+    const distM = Math.round(r.distance);
+    const speedKmh = vehicle === 'car' ? 30 : 25;
+    const durationMin = Math.round((distM / (speedKmh * 1000 / 60)) * 10) / 10;
+
+    const warnings = [];
+    const coordinates = (r.geometry && r.geometry.coordinates) ? r.geometry.coordinates : [];
+    if (Array.isArray(window.floodPoints)) {
+      window.floodPoints.forEach(pt => {
+        const depth = Number(pt.current_depth_cm || 0);
+        if (depth >= 5) {
+          for (let i = 0; i < coordinates.length; i += 3) {
+            const dLng = coordinates[i][0] - pt.lng;
+            const dLat = coordinates[i][1] - pt.lat;
+            const distApprox = Math.sqrt(Math.pow(dLat * 111000, 2) + Math.pow(dLng * 103000, 2));
+            if (distApprox < 80) {
+              warnings.push({
+                street: pt.name || pt.location_desc || 'Điểm ngập trên tuyến',
+                depth_cm: depth
+              });
+              break;
+            }
+          }
+        }
+      });
+    }
+
+    const routeObj = {
+      found: true,
+      mode: 'safe',
+      distance_m: distM,
+      duration_min: durationMin,
+      geometry: r.geometry,
+      flood_warnings: warnings
+    };
+
+    return {
+      vehicle: vehicle,
+      ai_prediction_applied: false,
+      same_route: true,
+      fastest: routeObj,
+      safe: routeObj,
+      flood_sources_used: (window.floodPoints || []).length,
+      affected_road_segments: warnings.length,
+      is_extended_route: true
+    };
+  } catch (e) {
+    console.debug("Extended OSRM error:", e);
+    return null;
+  }
+}
+
 // 7. Gọi API Tìm đường Né ngập
 
 async function calculateRoute() {
@@ -1795,14 +1857,30 @@ async function calculateRoute() {
       })
     });
 
-    if (!res.ok) {
-      const errData = await res.json();
-      throw new Error(errData.detail || 'Không thể tìm thấy lộ trình');
+    if (res.ok) {
+      const data = await res.json();
+      displayRouteResults(data);
+      return;
     }
 
-    const data = await res.json();
-    displayRouteResults(data);
+    // Nếu backend trả về lỗi (ví dụ 422 do điểm ngoại thành hoặc bản đồ server chưa tải)
+    // Tự động kích hoạt OSRM Routing mở rộng ngay trên client
+    const osrmData = await fetchExtendedOsrmRoute(coords.origin, coords.destination, vehicle);
+    if (osrmData) {
+      displayRouteResults(osrmData);
+      return;
+    }
+
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.detail || 'Không thể tìm thấy lộ trình');
   } catch (err) {
+    // Thử lại lần cuối với OSRM nếu có lỗi mạng
+    const osrmData = await fetchExtendedOsrmRoute(coords.origin, coords.destination, vehicle);
+    if (osrmData) {
+      displayRouteResults(osrmData);
+      return;
+    }
+
     const resultCard = document.getElementById('route-results');
     if (resultCard) resultCard.classList.add('hidden');
     const summaryCard = document.getElementById('flood-summary-card');
@@ -2253,6 +2331,25 @@ function switchTab(tabId) {
     activeHdrBtn.className = 'px-2.5 sm:px-3 py-1.5 rounded-lg bg-white/25 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm border border-white/20';
   }
 
+  // Cập nhật tiêu đề thanh điều khiển trên mobile tương ứng với tab
+  const mobTitle = document.getElementById('mobile-sidebar-title');
+  if (mobTitle) {
+    if (tabId === 'route') {
+      mobTitle.innerHTML = '<i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-blue-600"></i> Bảng điều khiển tìm đường';
+    } else if (tabId === 'points') {
+      mobTitle.innerHTML = '<i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-amber-500"></i> Danh sách 130 trạm quan trắc';
+    } else if (tabId === 'report') {
+      mobTitle.innerHTML = '<i data-lucide="send" class="w-3.5 h-3.5 text-emerald-500"></i> Báo cáo ngập tại hiện trường';
+    }
+  }
+
+  // Trên thiết bị di động, tự động mở sidebar khi người dùng chuyển tab
+  if (window.innerWidth < 640 && typeof toggleMobilePanel === 'function') {
+    toggleMobilePanel(true);
+  }
+
+  if (window.lucide) lucide.createIcons();
+
   cancelPickMode();
 }
 
@@ -2370,443 +2467,437 @@ let addressDebounceTimer = null;
 
 
 
-// Danh bạ địa điểm trọng yếu Hà Nội phục vụ tìm kiếm tức thì và offline
-
+// Danh bạ địa điểm trọng yếu Hà Nội phục vụ tìm kiếm tức thì và offline (FE-02: Trung)
 const HANOI_LANDMARKS = [
-
+  // 1. Trường Đại học & Học viện trọng điểm
+  { name: "Đại học Y Hà Nội", lat: 21.0028, lng: 105.8315, sub: "Số 1 Tôn Thất Tùng, Kim Liên, Đống Đa" },
+  { name: "Bệnh viện Đại học Y Hà Nội", lat: 21.0028, lng: 105.8315, sub: "Số 1 Tôn Thất Tùng, Kim Liên, Đống Đa" },
   { name: "Đại học Quốc Gia Hà Nội (Xuân Thủy)", lat: 21.0372, lng: 105.7818, sub: "144 Xuân Thủy, Cầu Giấy" },
-
   { name: "Đại học Sư Phạm Hà Nội", lat: 21.0365, lng: 105.7830, sub: "136 Xuân Thủy, Dịch Vọng Hậu" },
+  { name: "Đại học Bách Khoa Hà Nội", lat: 21.0050, lng: 105.8430, sub: "Số 1 Đại Cồ Việt, Bách Khoa, Hai Bà Trưng" },
+  { name: "Đại học Kinh Tế Quốc Dân (NEU)", lat: 21.0003, lng: 105.8427, sub: "207 Giải Phóng, Đồng Tâm, Hai Bà Trưng" },
+  { name: "Đại học Xây Dựng Hà Nội", lat: 21.0035, lng: 105.8433, sub: "55 Giải Phóng, Đồng Tâm, Hai Bà Trưng" },
+  { name: "Đại học Khoa Học Tự Nhiên (ĐHQGHN)", lat: 20.9953, lng: 105.8083, sub: "334 Nguyễn Trãi, Thanh Xuân Trung" },
+  { name: "Đại học Khoa Học Xã Hội và Nhân Văn", lat: 20.9950, lng: 105.8078, sub: "336 Nguyễn Trãi, Thanh Xuân Trung" },
+  { name: "Đại học Hà Nội (HANU)", lat: 20.9839, lng: 105.7915, sub: "Km 9 Nguyễn Trãi, Trung Văn, Nam Từ Liêm" },
+  { name: "Học viện Ngân Hàng", lat: 21.0085, lng: 105.8260, sub: "12 Chùa Bộc, Quang Trung, Đống Đa" },
+  { name: "Đại học Thủy Lợi", lat: 21.0076, lng: 105.8239, sub: "175 Tây Sơn, Trung Liệt, Đống Đa" },
+  { name: "Đại học Công Đoàn", lat: 21.0088, lng: 105.8231, sub: "169 Tây Sơn, Quang Trung, Đống Đa" },
+  { name: "Đại học Ngoại Thương", lat: 21.0235, lng: 105.8068, sub: "91 Chùa Láng, Láng Thượng, Đống Đa" },
+  { name: "Học viện Ngoại Giao", lat: 21.0226, lng: 105.8063, sub: "69 Chùa Láng, Láng Thượng, Đống Đa" },
+  { name: "Đại học Luật Hà Nội", lat: 21.0255, lng: 105.8105, sub: "87 Nguyễn Chí Thanh, Láng Thượng, Đống Đa" },
+  { name: "Đại học Giao Thông Vận Tải", lat: 21.0285, lng: 105.8035, sub: "Số 3 Cầu Giấy, Láng Thượng, Đống Đa" },
+  { name: "Học viện Báo chí và Tuyên truyền", lat: 21.0380, lng: 105.7870, sub: "36 Xuân Thủy, Dịch Vọng Hậu, Cầu Giấy" },
+  { name: "Đại học Thương Mại", lat: 21.0366, lng: 105.7748, sub: "79 Hồ Tùng Mậu, Mai Dịch, Cầu Giấy" },
+  { name: "Đại học Công Nghiệp Hà Nội", lat: 21.0537, lng: 105.7351, sub: "298 Cầu Diễn, Minh Khai, Bắc Từ Liêm" },
+  { name: "Học viện Tài Chính", lat: 21.0744, lng: 105.7745, sub: "58 Lê Văn Hiến, Đức Thắng, Bắc Từ Liêm" },
+  { name: "Học viện Bưu Chính Viễn Thông", lat: 20.9804, lng: 105.7877, sub: "Km 10 Trần Phú, Mộ Lao, Hà Đông" },
+  { name: "Học viện An Ninh Nhân Dân", lat: 20.9840, lng: 105.7901, sub: "125 Trần Phú, Văn Quán, Hà Đông" },
+  { name: "Đại học Kiến Trúc Hà Nội", lat: 20.9818, lng: 105.7895, sub: "Km 10 Nguyễn Trãi, Văn Quán, Hà Đông" },
+  { name: "Học viện Cảnh Sát Nhân Dân", lat: 21.0664, lng: 105.7668, sub: "Cổ Nhuế 2, Bắc Từ Liêm, Hà Nội" },
 
-  { name: "Cầu Giấy (Ngã tư Cầu Giấy - Trần Đăng Ninh)", lat: 21.0335, lng: 105.7950, sub: "Quận Cầu Giấy, Hà Nội" },
-
-  { name: "Xuân Thủy - Cầu Giấy", lat: 21.0370, lng: 105.7820, sub: "Đường Xuân Thủy, Cầu Giấy" },
-
-  { name: "Nguyễn Khánh Toàn", lat: 21.0385, lng: 105.7955, sub: "Đường Nguyễn Khánh Toàn, Quan Hoa" },
-
-  { name: "Trần Duy Hưng (Trung Hòa)", lat: 21.0105, lng: 105.8010, sub: "Đường Trần Duy Hưng, Cầu Giấy" },
-
-  { name: "Láng Hạ (Đống Đa)", lat: 21.0115, lng: 105.8120, sub: "Đường Láng Hạ, Đống Đa" },
-
-  { name: "Chùa Bộc (Học viện Ngân Hàng)", lat: 21.0085, lng: 105.8260, sub: "Đường Chùa Bộc, Quang Trung" },
-
-  { name: "Phạm Hùng - Mễ Trì (Keangnam)", lat: 21.0280, lng: 105.7770, sub: "Phạm Hùng, Mễ Trì, Nam Từ Liêm" },
-
-  { name: "Hoàng Quốc Việt (Cầu Giấy)", lat: 21.0465, lng: 105.7925, sub: "Đường Hoàng Quốc Việt, Nghĩa Đô" },
-
-  { name: "Nguyễn Chí Thanh (Đại học Luật)", lat: 21.0255, lng: 105.8105, sub: "Nguyễn Chí Thanh, Láng Thượng" },
-
-  { name: "Bến xe Mỹ Đình", lat: 21.0288, lng: 105.7780, sub: "20 Phạm Hùng, Mỹ Đình 2" },
-
-  { name: "Hồ Gươm (Hồ Hoàn Kiếm)", lat: 21.0285, lng: 105.8542, sub: "Quận Hoàn Kiếm, Hà Nội" },
-
-  { name: "Hồ Tây (Đường Thanh Niên)", lat: 21.0450, lng: 105.8350, sub: "Quận Tây Hồ, Hà Nội" },
-
-  { name: "Đại học Bách Khoa Hà Nội", lat: 21.0050, lng: 105.8430, sub: "Số 1 Đại Cồ Việt, Hai Bà Trưng" },
-
-  { name: "Keangnam Landmark 72", lat: 21.0175, lng: 105.7840, sub: "Khu E6 Phạm Hùng, Cầu Giấy" },
-
-  { name: "Big C Thăng Long (Go!)", lat: 21.0070, lng: 105.7930, sub: "222 Trần Duy Hưng, Trung Hòa" },
-
-  { name: "Công viên Cầu Giấy", lat: 21.0250, lng: 105.7900, sub: "Phố Duy Tân, Dịch Vọng" },
-
-  { name: "Học viện Báo chí và Tuyên truyền", lat: 21.0380, lng: 105.7870, sub: "36 Xuân Thủy, Dịch Vọng Hậu" },
-
-  { name: "Sân vận động Mỹ Đình", lat: 21.0205, lng: 105.7640, sub: "Đường Lê Đức Thọ, Mỹ Đình 1" },
-
-  { name: "Học viện Ngoại Giao", lat: 21.0226, lng: 105.8063, sub: "69 Chùa Láng, Đống Đa" },
-
-  { name: "Đại học Ngoại Thương", lat: 21.0235, lng: 105.8068, sub: "91 Chùa Láng, Đống Đa" },
-
-  { name: "Đại học Giao Thông Vận Tải", lat: 21.0285, lng: 105.8035, sub: "Số 3 Cầu Giấy, Láng Thượng" },
-
+  // 2. Bệnh viện lớn
   { name: "Bệnh viện Bạch Mai", lat: 21.0028, lng: 105.8398, sub: "78 Giải Phóng, Phương Mai, Đống Đa" },
+  { name: "Bệnh viện Hữu nghị Việt Đức", lat: 21.0285, lng: 105.8488, sub: "40 Tràng Thi, Hàng Bông, Hoàn Kiếm" },
+  { name: "Bệnh viện Trung ương Quân đội 108", lat: 21.0182, lng: 105.8605, sub: "Số 1 Trần Hưng Đạo, Bạch Đằng, Hai Bà Trưng" },
+  { name: "Bệnh viện Nhi Trung Ương", lat: 21.0245, lng: 105.8080, sub: "18/879 La Thành, Láng Thượng, Đống Đa" },
+  { name: "Bệnh viện Phụ Sản Hà Nội", lat: 21.0270, lng: 105.8062, sub: "929 La Thành, Ngọc Khánh, Ba Đình" },
+  { name: "Bệnh viện K (Quán Sứ)", lat: 21.0253, lng: 105.8465, sub: "43 Quán Sứ, Hàng Bông, Hoàn Kiếm" },
+  { name: "Bệnh viện K (Tân Triều)", lat: 20.9658, lng: 105.7972, sub: "30 Cầu Bươu, Tân Triều, Thanh Trì" },
+  { name: "Bệnh viện Thanh Nhàn", lat: 21.0024, lng: 105.8617, sub: "42 Thanh Nhàn, Hai Bà Trưng, Hà Nội" },
+  { name: "Bệnh viện E", lat: 21.0506, lng: 105.7885, sub: "89 Trần Cung, Nghĩa Tân, Cầu Giấy" },
+  { name: "Bệnh viện Tim Hà Nội", lat: 21.0232, lng: 105.8460, sub: "92 Trần Hưng Đạo, Cửa Nam, Hoàn Kiếm" },
+  { name: "Bệnh viện Xanh Pôn (Saint Paul)", lat: 21.0321, lng: 105.8358, sub: "12 Chu Văn An, Điện Biên, Ba Đình" },
+  { name: "Bệnh viện Quân Y 103", lat: 20.9660, lng: 105.7880, sub: "261 Phùng Hưng, Phúc La, Hà Đông" },
 
-  { name: "Phường Tương Mai (Hoàng Mai)", lat: 20.9884, lng: 105.8547, sub: "Quận Hoàng Mai, Hà Nội" },
+  // 3. Tòa nhà, Chung cư & Trung tâm thương mại
+  { name: "Chung cư 96A Định Công", lat: 20.9856, lng: 105.8378, sub: "96A Định Công, Phương Liệt, Thanh Xuân" },
+  { name: "Chung cư 360 Giải Phóng (Imperial Plaza)", lat: 20.9890, lng: 105.8405, sub: "360 Giải Phóng, Định Công, Thanh Xuân" },
+  { name: "Chung cư HH Linh Đàm", lat: 20.9650, lng: 105.8280, sub: "KĐT Linh Đàm, Hoàng Liệt, Hoàng Mai" },
+  { name: "Keangnam Landmark 72", lat: 21.0175, lng: 105.7840, sub: "Khu E6 Phạm Hùng, Cầu Giấy" },
+  { name: "Big C Thăng Long (GO!)", lat: 21.0070, lng: 105.7930, sub: "222 Trần Duy Hưng, Trung Hòa, Cầu Giấy" },
+  { name: "Vincom Mega Mall Royal City", lat: 21.0028, lng: 105.8152, sub: "72A Nguyễn Trãi, Thượng Đình, Thanh Xuân" },
+  { name: "Vincom Mega Mall Times City", lat: 20.9953, lng: 105.8672, sub: "458 Minh Khai, Vĩnh Tuy, Hai Bà Trưng" },
+  { name: "Vincom Center Bà Triệu", lat: 21.0116, lng: 105.8497, sub: "191 Bà Triệu, Lê Đại Hành, Hai Bà Trưng" },
+  { name: "Vincom Center Nguyễn Chí Thanh", lat: 21.0232, lng: 105.8105, sub: "54A Nguyễn Chí Thanh, Láng Thượng, Đống Đa" },
+  { name: "Vincom Mega Mall Smart City", lat: 20.9965, lng: 105.7423, sub: "Vinhomes Smart City, Tây Mỗ, Nam Từ Liêm" },
+  { name: "Vincom Mega Mall Ocean Park", lat: 20.9880, lng: 105.9450, sub: "Vinhomes Ocean Park, Đa Tốn, Gia Lâm" },
+  { name: "Aeon Mall Hà Đông", lat: 20.9804, lng: 105.7538, sub: "Khu đô thị Dương Nội, Hà Đông" },
+  { name: "Aeon Mall Long Biên", lat: 21.0267, lng: 105.9004, sub: "27 Cổ Linh, Long Biên, Hà Nội" },
+  { name: "Lotte Center Hà Nội (Liễu Giai)", lat: 21.0326, lng: 105.8130, sub: "54 Liễu Giai, Cống Vị, Ba Đình" },
+  { name: "Lotte Mall Tây Hồ", lat: 21.0772, lng: 105.8080, sub: "272 Võ Chí Công, Phú Thượng, Tây Hồ" },
 
-  { name: "Đường Hoàng Mai", lat: 20.9882, lng: 105.8550, sub: "Quận Hoàng Mai, Hà Nội" },
-
-  { name: "Đường Nguyễn An Ninh (Tương Mai)", lat: 20.9895, lng: 105.8480, sub: "Phố Nguyễn An Ninh, Tương Mai, Hoàng Mai" },
-
-  { name: "Đường Giải Phóng", lat: 20.9964, lng: 105.8414, sub: "Quận Hoàng Mai / Hai Bà Trưng, Hà Nội" },
-
+  // 4. Bến xe, Sân bay, Ga tàu & Nút giao trọng yếu
+  { name: "Bến xe Mỹ Đình", lat: 21.0288, lng: 105.7780, sub: "20 Phạm Hùng, Mỹ Đình 2, Nam Từ Liêm" },
   { name: "Bến xe Giáp Bát", lat: 20.9806, lng: 105.8418, sub: "Đường Giải Phóng, Giáp Bát, Hoàng Mai" },
+  { name: "Bến xe Nước Ngầm", lat: 20.9634, lng: 105.8410, sub: "Số 1 Ngọc Hồi, Hoàng Liệt, Hoàng Mai" },
+  { name: "Bến xe Gia Lâm", lat: 21.0502, lng: 105.8770, sub: "Số 9 Ngô Gia Khảm, Ngọc Lâm, Long Biên" },
+  { name: "Bến xe Yên Nghĩa", lat: 20.9535, lng: 105.7510, sub: "Quốc lộ 6, Yên Nghĩa, Hà Đông" },
+  { name: "Ga Hà Nội", lat: 21.0246, lng: 105.8412, sub: "120 Lê Duẩn, Văn Miếu, Đống Đa" },
+  { name: "Sân bay Quốc tế Nội Bài", lat: 21.2212, lng: 105.8072, sub: "Xã Phú Minh, Huyện Sóc Sơn, Hà Nội" },
+  { name: "Sân vận động Quốc gia Mỹ Đình", lat: 21.0205, lng: 105.7640, sub: "Đường Lê Đức Thọ, Mỹ Đình 1, Nam Từ Liêm" },
+  { name: "Trung tâm Hội nghị Quốc gia", lat: 21.0055, lng: 105.7838, sub: "Đại lộ Thăng Long, Mễ Trì, Nam Từ Liêm" },
+  { name: "Hồ Gươm (Hồ Hoàn Kiếm)", lat: 21.0285, lng: 105.8542, sub: "Quận Hoàn Kiếm, Hà Nội" },
+  { name: "Hồ Tây (Đường Thanh Niên)", lat: 21.0450, lng: 105.8350, sub: "Quận Tây Hồ, Hà Nội" },
+  { name: "Lăng Chủ tịch Hồ Chí Minh (Lăng Bác)", lat: 21.0368, lng: 105.8346, sub: "Số 2 Hùng Vương, Điện Biên, Ba Đình" },
+  { name: "Văn Miếu Quốc Tử Giám", lat: 21.0286, lng: 105.8355, sub: "58 Quốc Tử Giám, Đống Đa, Hà Nội" },
+  { name: "Ngã Tư Sở", lat: 21.0035, lng: 105.8180, sub: "Giao lộ Trường Chinh - Tây Sơn - Láng - Nguyễn Trãi" },
+  { name: "Ngã Tư Vọng", lat: 20.9995, lng: 105.8415, sub: "Giao lộ Giải Phóng - Trường Chinh - Đại La" },
+  { name: "Ô Chợ Dừa", lat: 21.0202, lng: 105.8278, sub: "Giao lộ Tôn Đức Thắng - Xã Đàn - Khâm Thiên" },
+  { name: "Hầm chui Kim Liên", lat: 21.0105, lng: 105.8440, sub: "Đại Cồ Việt - Xã Đàn, Đống Đa / Hai Bà Trưng" },
+  { name: "Hầm chui Trung Hòa", lat: 21.0060, lng: 105.7900, sub: "Trần Duy Hưng - Đại lộ Thăng Long, Cầu Giấy" },
+  { name: "Hầm chui Thanh Xuân", lat: 20.9930, lng: 105.7985, sub: "Nguyễn Trãi - Khuất Duy Tiến, Thanh Xuân" },
+  { name: "Hầm chui Lê Văn Lương", lat: 21.0010, lng: 105.7940, sub: "Lê Văn Lương - Vành đai 3, Thanh Xuân" },
 
-  { name: "Đường Trương Định", lat: 20.9912, lng: 105.8475, sub: "Quận Hoàng Mai / Hai Bà Trưng, Hà Nội" },
-
-  { name: "Đường Kim Mã (Ba Đình)", lat: 21.0315, lng: 105.8200, sub: "Quận Ba Đình, Hà Nội" },
-
-  { name: "Đường Nguyễn Trãi (Thanh Xuân)", lat: 20.9960, lng: 105.8080, sub: "Quận Thanh Xuân, Hà Nội" },
-
-  { name: "Đường Minh Khai (Hai Bà Trưng)", lat: 20.9980, lng: 105.8600, sub: "Quận Hai Bà Trưng, Hà Nội" }
-
+  // 5. Tuyến phố & Đường huyết mạch
+  { name: "Đường Tôn Thất Tùng", lat: 21.0040, lng: 105.8310, sub: "Phường Kim Liên - Khương Thượng, Đống Đa" },
+  { name: "Đường Chùa Bộc", lat: 21.0085, lng: 105.8260, sub: "Phường Quang Trung, Đống Đa" },
+  { name: "Đường Thái Hà", lat: 21.0145, lng: 105.8185, sub: "Phường Trung Liệt, Đống Đa" },
+  { name: "Đường Tây Sơn", lat: 21.0105, lng: 105.8215, sub: "Phường Quang Trung, Đống Đa" },
+  { name: "Đường Láng Hạ", lat: 21.0115, lng: 105.8120, sub: "Phường Láng Hạ, Đống Đa" },
+  { name: "Đường Huỳnh Thúc Kháng", lat: 21.0190, lng: 105.8115, sub: "Phường Láng Hạ, Đống Đa" },
+  { name: "Phố Chùa Láng", lat: 21.0240, lng: 105.8035, sub: "Phường Láng Thượng, Đống Đa" },
+  { name: "Đường Trường Chinh", lat: 21.0010, lng: 105.8330, sub: "Phường Khương Mai - Phương Mai" },
+  { name: "Đường Xã Đàn", lat: 21.0165, lng: 105.8350, sub: "Phường Nam Đồng, Đống Đa" },
+  { name: "Đường Đại Cồ Việt", lat: 21.0100, lng: 105.8480, sub: "Phường Lê Đại Hành, Hai Bà Trưng" },
+  { name: "Đường Định Công", lat: 20.9880, lng: 105.8380, sub: "Phường Định Công, Hoàng Mai" },
+  { name: "Đường Giải Phóng", lat: 20.9964, lng: 105.8414, sub: "Quận Hoàng Mai / Hai Bà Trưng" },
+  { name: "Đường Phạm Ngọc Thạch", lat: 21.0090, lng: 105.8325, sub: "Phường Kim Liên, Đống Đa" },
+  { name: "Đường Nguyễn Chí Thanh", lat: 21.0255, lng: 105.8105, sub: "Quận Đống Đa / Ba Đình" },
+  { name: "Đường Trần Duy Hưng", lat: 21.0105, lng: 105.8010, sub: "Phường Trung Hòa, Cầu Giấy" },
+  { name: "Đường Lê Văn Lương", lat: 21.0040, lng: 105.7990, sub: "Phường Nhân Chính, Thanh Xuân" },
+  { name: "Đường Tố Hữu", lat: 20.9930, lng: 105.7820, sub: "Phường Trung Văn, Nam Từ Liêm" },
+  { name: "Đường Nguyễn Trãi", lat: 20.9960, lng: 105.8080, sub: "Quận Thanh Xuân, Hà Nội" },
+  { name: "Đường Khuất Duy Tiến", lat: 20.9985, lng: 105.7950, sub: "Phường Thanh Xuân Bắc, Thanh Xuân" },
+  { name: "Đường Nguyễn Xiển", lat: 20.9870, lng: 105.8085, sub: "Phường Hạ Đình, Thanh Xuân" },
+  { name: "Đường Láng", lat: 21.0165, lng: 105.8060, sub: "Phường Láng Thượng - Thịnh Quang, Đống Đa" },
+  { name: "Đường Cầu Giấy", lat: 21.0335, lng: 105.7950, sub: "Phường Quan Hoa - Dịch Vọng, Cầu Giấy" },
+  { name: "Đường Xuân Thủy", lat: 21.0370, lng: 105.7820, sub: "Phường Dịch Vọng Hậu, Cầu Giấy" },
+  { name: "Đường Hồ Tùng Mậu", lat: 21.0390, lng: 105.7680, sub: "Phường Mai Dịch, Cầu Giấy" },
+  { name: "Đường Phạm Hùng", lat: 21.0220, lng: 105.7810, sub: "Phường Mễ Trì - Mỹ Đình, Nam Từ Liêm" },
+  { name: "Đường Hoàng Quốc Việt", lat: 21.0465, lng: 105.7925, sub: "Phường Nghĩa Đô, Cầu Giấy" },
+  { name: "Đường Võ Chí Công", lat: 21.0650, lng: 105.8080, sub: "Phường Xuân La, Tây Hồ" },
+  { name: "Đường Lạc Long Quân", lat: 21.0580, lng: 105.8100, sub: "Phường Bưởi, Tây Hồ" },
+  { name: "Đường Âu Cơ", lat: 21.0680, lng: 105.8250, sub: "Phường Quảng An, Tây Hồ" },
+  { name: "Đường Nghi Tàm", lat: 21.0520, lng: 105.8380, sub: "Phường Yên Phụ, Tây Hồ" },
+  { name: "Đường Kim Mã", lat: 21.0315, lng: 105.8200, sub: "Phường Kim Mã, Ba Đình" },
+  { name: "Đường Giảng Võ", lat: 21.0260, lng: 105.8225, sub: "Phường Giảng Võ, Ba Đình" },
+  { name: "Đường Liễu Giai", lat: 21.0340, lng: 105.8140, sub: "Phường Cống Vị, Ba Đình" },
+  { name: "Đường Hoàng Hoa Thám", lat: 21.0420, lng: 105.8150, sub: "Quận Ba Đình / Tây Hồ" },
+  { name: "Đường Thụy Khuê", lat: 21.0430, lng: 105.8220, sub: "Phường Thụy Khuê, Tây Hồ" },
+  { name: "Đường Minh Khai", lat: 20.9980, lng: 105.8600, sub: "Phường Vĩnh Tuy, Hai Bà Trưng" },
+  { name: "Đường Bạch Mai", lat: 21.0030, lng: 105.8500, sub: "Phường Bạch Mai, Hai Bà Trưng" },
+  { name: "Đường Phố Huế", lat: 21.0150, lng: 105.8510, sub: "Quận Hai Bà Trưng, Hà Nội" },
+  { name: "Đường Bà Triệu", lat: 21.0180, lng: 105.8500, sub: "Quận Hoàn Kiếm / Hai Bà Trưng" },
+  { name: "Đường Tràng Thi", lat: 21.0280, lng: 105.8490, sub: "Phường Hàng Bông, Hoàn Kiếm" },
+  { name: "Đường Đinh Tiên Hoàng", lat: 21.0300, lng: 105.8530, sub: "Phường Tràng Tiền, Hoàn Kiếm" },
+  { name: "Đường Trần Hưng Đạo", lat: 21.0220, lng: 105.8510, sub: "Quận Hoàn Kiếm, Hà Nội" },
+  { name: "Đường Hai Bà Trưng", lat: 21.0260, lng: 105.8510, sub: "Quận Hoàn Kiếm, Hà Nội" },
+  { name: "Đường Phan Đình Phùng", lat: 21.0400, lng: 105.8400, sub: "Phường Quán Thánh, Ba Đình" }
 ];
 
 
 
-// Helper đồng bộ ID phần tử cho cả 'destination' và 'dest'
-
-function getAddressElements(type) {
-
-  const isDest = (type === 'destination' || type === 'dest');
-
-  const prefix = isDest ? 'dest' : 'origin';
-
-  return {
-
-    targetType: isDest ? 'destination' : 'origin',
-
-    input: document.getElementById(`${prefix}-text`) || document.getElementById(`${type}-text`),
-
-    container: document.getElementById(`${prefix}-suggestions`) || document.getElementById(`${type}-suggestions`),
-
-    clearBtn: document.getElementById(`btn-clear-${prefix}`) || document.getElementById(`btn-clear-${type}`)
-
-  };
-
+// Chuẩn hóa chuỗi tìm kiếm tiếng Việt (bỏ dấu, chuyển đ->d, loại bỏ ký tự đặc biệt)
+function normalizeSearchText(str) {
+  if (!str) return '';
+  return str.toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
+// Kiểm tra và tính điểm tương đồng giữa từ khóa và địa danh
+function scoreLocationMatch(name, sub, query) {
+  const qNorm = normalizeSearchText(query);
+  if (!qNorm) return 0;
+  const nNorm = normalizeSearchText(name);
+  const sNorm = normalizeSearchText(sub);
 
+  // 1. Khớp chính xác tuyệt đối
+  if (nNorm === qNorm) return 100;
+  // 2. Bắt đầu bằng từ khóa
+  if (nNorm.startsWith(qNorm)) return 85;
+  // 3. Chứa trọn vẹn từ khóa trong tên
+  if (nNorm.includes(qNorm)) return 75;
+  // 4. Từ khóa chứa trọn vẹn tên địa danh (ví dụ user gõ "trường đại học y hà nội")
+  if (qNorm.includes(nNorm) && nNorm.length >= 4) return 70;
+  // 5. Chứa trọn vẹn trong địa chỉ phụ (sub)
+  if (sNorm.includes(qNorm)) return 60;
+
+  // 6. Khớp theo tập hợp từ (token-based), bỏ qua các từ phụ phổ biến
+  const STOP_WORDS = new Set(['truong', 'khu', 'pho', 'duong', 'quan', 'tp', 'thanh', 'ha', 'noi', 'hn', 'so', 'nha', 'toa']);
+  const qTokens = qNorm.split(' ').filter(w => w.length > 0 && !STOP_WORDS.has(w));
+  if (qTokens.length === 0) return 0;
+
+  const nTokens = nNorm.split(' ');
+  const sTokens = sNorm.split(' ');
+  const allTargetTokens = new Set([...nTokens, ...sTokens]);
+
+  const matchedTokens = qTokens.filter(t => allTargetTokens.has(t) || [...allTargetTokens].some(target => target.includes(t)));
+  const matchRatio = matchedTokens.length / qTokens.length;
+
+  if (matchRatio === 1) return 55; // Khớp đủ tất cả từ khóa chính
+  if (matchRatio >= 0.6) return 30; // Khớp đa số từ khóa
+
+  return 0;
+}
+
+// Tìm kiếm danh bạ địa phương (HANOI_LANDMARKS + window.floodPoints) tức thì (<1ms)
+function getLocalAddressMatches(query) {
+  if (!query || query.trim().length < 2) return [];
+  const qClean = query.trim();
+  const results = [];
+
+  // 1. Quét danh bạ địa danh Hà Nội
+  if (typeof HANOI_LANDMARKS !== 'undefined' && Array.isArray(HANOI_LANDMARKS)) {
+    for (const item of HANOI_LANDMARKS) {
+      const score = scoreLocationMatch(item.name, item.sub, qClean);
+      if (score > 0) {
+        results.push({
+          name: item.name,
+          sub: item.sub,
+          lat: item.lat,
+          lng: item.lng,
+          score: score
+        });
+      }
+    }
+  }
+
+  // 2. Quét thêm từ 130 điểm trạm quan trắc ngập lụt hiện có trên bản đồ
+  if (typeof window !== 'undefined' && Array.isArray(window.floodPoints)) {
+    for (const pt of window.floodPoints) {
+      const ptName = pt.name || pt.location_desc || '';
+      const ptSub = pt.location_desc || pt.district || 'Hà Nội';
+      const score = scoreLocationMatch(ptName, ptSub, qClean);
+      if (score > 0) {
+        // Kiểm tra tránh trùng lặp tọa độ quá gần với địa danh đã có
+        const isDuplicate = results.some(r => Math.abs(r.lat - pt.lat) < 0.001 && Math.abs(r.lng - pt.lng) < 0.001);
+        if (!isDuplicate) {
+          results.push({
+            name: ptName,
+            sub: `${ptSub} (Điểm trạm)`,
+            lat: pt.lat,
+            lng: pt.lng,
+            score: score - 5
+          });
+        }
+      }
+    }
+  }
+
+  // Sắp xếp theo điểm tương đồng cao nhất
+  results.sort((a, b) => b.score - a.score);
+  return results.slice(0, 6);
+}
+
+// Helper đồng bộ ID phần tử cho cả 'destination' và 'dest'
+function getAddressElements(type) {
+  const isDest = (type === 'destination' || type === 'dest');
+  const prefix = isDest ? 'dest' : 'origin';
+  return {
+    targetType: isDest ? 'destination' : 'origin',
+    input: document.getElementById(`${prefix}-text`) || document.getElementById(`${type}-text`),
+    container: document.getElementById(`${prefix}-suggestions`) || document.getElementById(`${type}-suggestions`),
+    clearBtn: document.getElementById(`btn-clear-${prefix}`) || document.getElementById(`btn-clear-${type}`)
+  };
+}
+
+// Hiển thị danh sách gợi ý ra giao diện
+function renderAddressSuggestions(targetType, container, items) {
+  if (!container) return;
+  if (!items || items.length === 0) {
+    container.innerHTML = `<div class="p-3 text-center text-slate-400 text-xs">Không tìm thấy địa chỉ phù hợp. Bạn có thể bấm "Chỉ định trên bản đồ".</div>`;
+    container.classList.remove('hidden');
+    return;
+  }
+
+  container.innerHTML = items.slice(0, 6).map(item => `
+    <div onclick="selectAddress('${targetType}', ${item.lat}, ${item.lng}, '${encodeURIComponent(item.name)}')" 
+         class="p-2.5 hover:bg-blue-50 cursor-pointer transition flex items-start gap-2.5 text-left group border-b border-slate-100 last:border-b-0">
+      <i data-lucide="map-pin" class="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5 group-hover:scale-110 transition"></i>
+      <div class="flex-1 overflow-hidden">
+        <p class="font-bold text-slate-800 text-xs truncate group-hover:text-blue-600">${item.name}</p>
+        <p class="text-[11px] text-slate-500 truncate">${item.sub}</p>
+      </div>
+    </div>
+  `).join('');
+  container.classList.remove('hidden');
+  if (window.lucide) lucide.createIcons();
+}
 
 // Tự động phân giải địa chỉ từ chuỗi người dùng đã nhập
-
 async function resolveAddressFromInput(type) {
-
   const { targetType, input } = getAddressElements(type);
-
   if (!input) return false;
-
   const query = input.value.trim();
-
   if (!query) return false;
 
-
-
   // 1. Kiểm tra nếu là dạng tọa độ số "lat, lng"
-
   const parts = query.split(',').map(s => parseFloat(s.trim()));
-
   if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-
     coords[targetType] = { lat: parts[0], lng: parts[1] };
-
     const color = targetType === 'origin' ? '#10b981' : '#ef4444';
-
     const label = targetType === 'origin' ? 'Điểm xuất phát' : 'Điểm đến';
-
     updatePickMarker(targetType, parts[0], parts[1], color, label);
-
     return true;
-
   }
 
-
-
-  // 2. Tra cứu trong danh bạ trọng yếu
-
-  const qNorm = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-  const localMatch = HANOI_LANDMARKS.find(item => {
-
-    const nameNorm = item.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-    const subNorm = item.sub.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-    return nameNorm.includes(qNorm) || subNorm.includes(qNorm);
-
-  });
-
-  if (localMatch) {
-
-    coords[targetType] = { lat: localMatch.lat, lng: localMatch.lng };
-
+  // 2. Tra cứu tức thì từ danh bạ địa phương (HANOI_LANDMARKS + floodPoints)
+  const localMatches = getLocalAddressMatches(query);
+  if (localMatches.length > 0) {
+    const best = localMatches[0];
+    coords[targetType] = { lat: best.lat, lng: best.lng };
     const color = targetType === 'origin' ? '#10b981' : '#ef4444';
-
     const label = targetType === 'origin' ? 'Điểm xuất phát' : 'Điểm đến';
-
-    updatePickMarker(targetType, localMatch.lat, localMatch.lng, color, label);
-
+    updatePickMarker(targetType, best.lat, best.lng, color, label);
     return true;
-
   }
 
-
-
-  // 3. Tra cứu nhanh qua Photon API
-
+  // 3. Tra cứu nhanh dự phòng qua Photon API (tối đa 2.0s timeout)
   try {
-
-    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=21.0285&lon=105.8030&limit=1&lang=default`;
-
-    const res = await fetch(url);
-
-    if (res.ok) {
-
-      const data = await res.json();
-
-      if (data.features && data.features.length > 0) {
-
-        const f = data.features[0];
-
-        const lat = f.geometry.coordinates[1];
-
-        const lng = f.geometry.coordinates[0];
-
-        coords[targetType] = { lat, lng };
-
-        const color = targetType === 'origin' ? '#10b981' : '#ef4444';
-
-        const label = targetType === 'origin' ? 'Điểm xuất phát' : 'Điểm đến';
-
-        updatePickMarker(targetType, lat, lng, color, label);
-
-        return true;
-
-      }
-
-    }
-
-  } catch (e) {
-
-    if (e.name === 'AbortError') return false;
-    console.debug("resolveAddressFromInput status:", e.message || e);
-
-  }
-
-
-
-  return false;
-
-}
-
-
-
-function handleAddressInput(type, query) {
-
-  const { targetType, clearBtn, container } = getAddressElements(type);
-
-  if (!container) return;
-
-
-
-  if (clearBtn) {
-
-    if (query && query.trim().length > 0) clearBtn.classList.remove('hidden');
-
-    else clearBtn.classList.add('hidden');
-
-  }
-
-
-
-  // Nếu người dùng xóa sạch text, xóa luôn tọa độ tương ứng
-
-  if (!query || query.trim().length === 0) {
-
-    coords[targetType] = null;
-
-    if (pickMarkers[targetType]) {
-
-      map.removeLayer(pickMarkers[targetType]);
-
-      pickMarkers[targetType] = null;
-
-    }
-
-    container.innerHTML = '';
-
-    container.classList.add('hidden');
-
-    return;
-
-  }
-
-
-
-  if (query.trim().length < 2) {
-
-    container.innerHTML = '';
-
-    container.classList.add('hidden');
-
-    return;
-
-  }
-
-
-
-  clearTimeout(addressDebounceTimer);
-
-  addressDebounceTimer = setTimeout(() => {
-
-    executeAddressSearch(type, query.trim());
-
-  }, 250);
-
-}
-
-
-
-async function executeAddressSearch(type, query) {
-
-  const { targetType, container } = getAddressElements(type);
-
-  if (!container) return;
-
-
-
-  container.innerHTML = `<div class="p-2.5 text-center text-slate-400 text-xs flex items-center justify-center gap-1.5"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>Đang tìm địa chỉ...</span></div>`;
-
-  container.classList.remove('hidden');
-
-  if (window.lucide) lucide.createIcons();
-
-
-
-  const qNorm = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-
-
-  // 1. Khớp từ khóa danh bạ địa điểm Hà Nội tức thì
-
-  const localMatches = HANOI_LANDMARKS.filter(item => {
-
-    const nameNorm = item.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-    const subNorm = item.sub.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-    return nameNorm.includes(qNorm) || subNorm.includes(qNorm);
-
-  });
-
-
-
-  // 2. Tìm kiếm mở rộng qua Photon Komoot API (OSM geocoder tốc độ cao, hỗ trợ CORS & tiếng Việt, không bị timeout như Nominatim)
-
-  let apiMatches = [];
-
-  try {
-
     const controller = new AbortController();
-
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
-
-    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=21.0285&lon=105.8030&limit=6&lang=default`;
-
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=21.0285&lon=105.8030&limit=1&lang=default`;
     const res = await fetch(url, { signal: controller.signal });
-
     clearTimeout(timeoutId);
 
-
-
     if (res.ok) {
-
       const data = await res.json();
-
-      apiMatches = (data.features || []).map(f => {
-
-        const p = f.properties || {};
-
-        const title = p.name || p.street || query;
-
-        const parts = [];
-
-        if (p.housenumber && p.street && !title.includes(p.street)) {
-
-          parts.push(`${p.housenumber} ${p.street}`);
-
-        } else if (p.street && !title.includes(p.street)) {
-
-          parts.push(p.street);
-
-        }
-
-        if (p.district) parts.push(p.district);
-
-        if (p.city) parts.push(p.city);
-
-        const sub = parts.join(', ') || 'Hà Nội, Việt Nam';
-
-        return {
-
-          name: title,
-
-          sub: sub,
-
-          lat: f.geometry.coordinates[1],
-
-          lng: f.geometry.coordinates[0]
-
-        };
-
-      });
-
+      if (data.features && data.features.length > 0) {
+        const f = data.features[0];
+        const lat = f.geometry.coordinates[1];
+        const lng = f.geometry.coordinates[0];
+        coords[targetType] = { lat, lng };
+        const color = targetType === 'origin' ? '#10b981' : '#ef4444';
+        const label = targetType === 'origin' ? 'Điểm xuất phát' : 'Điểm đến';
+        updatePickMarker(targetType, lat, lng, color, label);
+        return true;
+      }
     }
-
   } catch (e) {
-
-    if (e.name === 'AbortError') {
-      return; // Bỏ qua AbortError khi người dùng gõ tiếp hoặc debounce hủy request
-    }
-    console.debug("Photon API search status:", e.message || e);
-
+    console.debug("resolveAddressFromInput fallback status:", e.message || e);
   }
 
-
-
-  // Kết hợp và loại bỏ trùng lặp
-
-  const allResults = [...localMatches];
-
-  apiMatches.forEach(item => {
-
-    if (!allResults.some(r => Math.abs(r.lat - item.lat) < 0.003 && Math.abs(r.lng - item.lng) < 0.003)) {
-
-      allResults.push(item);
-
-    }
-
-  });
-
-
-
-  if (allResults.length === 0) {
-
-    container.innerHTML = `<div class="p-3 text-center text-slate-400 text-xs">Không tìm thấy địa chỉ phù hợp. Bạn có thể chọn trực tiếp trên bản đồ.</div>`;
-
-    return;
-
-  }
-
-
-
-  container.innerHTML = allResults.slice(0, 6).map(item => `
-
-    <div onclick="selectAddress('${targetType}', ${item.lat}, ${item.lng}, '${encodeURIComponent(item.name)}')" 
-
-         class="p-2.5 hover:bg-blue-50 cursor-pointer transition flex items-start gap-2.5 text-left group border-b border-slate-100 last:border-b-0">
-
-      <i data-lucide="map-pin" class="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5 group-hover:scale-110 transition"></i>
-
-      <div class="flex-1 overflow-hidden">
-
-        <p class="font-bold text-slate-800 text-xs truncate group-hover:text-blue-600">${item.name}</p>
-
-        <p class="text-[11px] text-slate-500 truncate">${item.sub}</p>
-
-      </div>
-
-    </div>
-
-  `).join('');
-
-
-
-  if (window.lucide) lucide.createIcons();
-
+  return false;
 }
 
+// Xử lý sự kiện khi gõ vào ô địa chỉ
+function handleAddressInput(type, query) {
+  const { targetType, clearBtn, container } = getAddressElements(type);
+  if (!container) return;
 
+  if (clearBtn) {
+    if (query && query.trim().length > 0) clearBtn.classList.remove('hidden');
+    else clearBtn.classList.add('hidden');
+  }
+
+  // Nếu người dùng xóa sạch text, xóa luôn tọa độ tương ứng
+  if (!query || query.trim().length === 0) {
+    coords[targetType] = null;
+    if (pickMarkers[targetType]) {
+      map.removeLayer(pickMarkers[targetType]);
+      pickMarkers[targetType] = null;
+    }
+    container.innerHTML = '';
+    container.classList.add('hidden');
+    return;
+  }
+
+  if (query.trim().length < 2) {
+    container.innerHTML = '';
+    container.classList.add('hidden');
+    return;
+  }
+
+  // HIỂN THỊ TỨC THÌ (<1ms) KẾT QUẢ ĐỊA PHƯƠNG KHÔNG CẦN CHỜ ĐỢI
+  const instantMatches = getLocalAddressMatches(query);
+  if (instantMatches.length > 0) {
+    renderAddressSuggestions(targetType, container, instantMatches);
+  }
+
+  // Debounce gọi thêm API mở rộng để bổ sung địa chỉ hiếm (nếu cần)
+  clearTimeout(addressDebounceTimer);
+  addressDebounceTimer = setTimeout(() => {
+    executeAddressSearch(type, query.trim(), instantMatches);
+  }, 250);
+}
+
+// Tìm kiếm mở rộng kết hợp danh bạ và API
+async function executeAddressSearch(type, query, currentLocalMatches = []) {
+  const { targetType, container } = getAddressElements(type);
+  if (!container) return;
+
+  // Lấy kết quả địa phương mới nhất
+  const localMatches = (currentLocalMatches && currentLocalMatches.length > 0) 
+    ? currentLocalMatches 
+    : getLocalAddressMatches(query);
+
+  // Nếu chưa có kết quả địa phương nào, hiển thị spinner tìm kiếm
+  if (localMatches.length === 0) {
+    container.innerHTML = `<div class="p-2.5 text-center text-slate-400 text-xs flex items-center justify-center gap-1.5"><i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i><span>Đang tìm địa chỉ...</span></div>`;
+    container.classList.remove('hidden');
+    if (window.lucide) lucide.createIcons();
+  }
+
+  // Nếu đã có 4+ kết quả địa phương khớp rất tốt (điểm >= 70), không cần chờ API để tránh làm chậm UX
+  if (localMatches.length >= 4 && localMatches[0].score >= 70) {
+    renderAddressSuggestions(targetType, container, localMatches);
+    return;
+  }
+
+  // Gọi Photon API mở rộng với timeout an toàn 2.0s
+  let apiMatches = [];
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&lat=21.0285&lon=105.8030&limit=6&lang=default`;
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      const data = await res.json();
+      apiMatches = (data.features || []).map(f => {
+        const p = f.properties || {};
+        const title = p.name || p.street || query;
+        const parts = [];
+        if (p.housenumber && p.street && !title.includes(p.street)) {
+          parts.push(`${p.housenumber} ${p.street}`);
+        } else if (p.street && !title.includes(p.street)) {
+          parts.push(p.street);
+        }
+        if (p.district) parts.push(p.district);
+        if (p.city) parts.push(p.city);
+        const sub = parts.join(', ') || 'Hà Nội, Việt Nam';
+        return {
+          name: title,
+          sub: sub,
+          lat: f.geometry.coordinates[1],
+          lng: f.geometry.coordinates[0],
+          score: 50
+        };
+      });
+    }
+  } catch (e) {
+    // Tuyệt đối không return ở đây - đảm bảo luôn cập nhật giao diện
+    console.debug("Address API search note:", e.message || e);
+  }
+
+  // Kết hợp và loại bỏ trùng lặp (ưu tiên danh bạ địa phương)
+  const combined = [...localMatches];
+  apiMatches.forEach(item => {
+    if (!combined.some(r => Math.abs(r.lat - item.lat) < 0.003 && Math.abs(r.lng - item.lng) < 0.003)) {
+      combined.push(item);
+    }
+  });
+
+  renderAddressSuggestions(targetType, container, combined);
+}
 
 function selectAddress(type, lat, lng, displayName) {
 
